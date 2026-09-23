@@ -43,9 +43,10 @@ if [[ $rc -ne 0 ]]; then
 fi
 primary="$(meta 1)"; child="$(meta 2)"
 
-# (a) names resolve to the Minecraft/loader/java/environment ids; the Bukkit "26.2" (id 200) is excluded
-if jq -e '.gameVersions == [100,101,300,7499,9638,9639]' <<<"$primary" >/dev/null; then
-  pass "(a) game versions resolve, Bukkit 26.2 excluded"
+# (a) names resolve to the Minecraft/loader/java/environment ids (real Java-host ids); the Bukkit "26.2" (id 200)
+#     and "26.3-snapshot" are not picked
+if jq -e '.gameVersions == [7499,9638,9639,14454,16498,17045]' <<<"$primary" >/dev/null; then
+  pass "(a) game versions resolve, Bukkit 26.2 and 26.3-snapshot excluded"
 else
   fail "(a) unexpected gameVersions: $(jq -c .gameVersions <<<"$primary")"
 fi
@@ -100,6 +101,125 @@ if [[ $rc -ne 0 ]] && grep -q "bad relation type" "$tmp/out"; then
   pass "bad relation type is rejected"
 else
   fail "bad relation type not rejected: rc=$rc"
+fi
+
+# --- Bedrock host: no usable /game/version-types, so prefixes are "" and types are not read ----
+run_upload CF_TYPE_PREFIXES='' CF_TYPES_JSON=/nonexistent CF_VERSIONS_JSON="$here/fixtures/versions-bedrock.json" \
+  CF_GAME_VERSIONS='26.50' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+if [[ $rc -eq 0 ]] && jq -e '.gameVersions == [15002]' <<<"$(meta 1)" >/dev/null; then
+  pass "Bedrock: CF_TYPE_PREFIXES='' resolves 26.50 without version types"
+else
+  fail "Bedrock resolution: rc=$rc $(cat "$tmp/out")"
+fi
+
+echo '' > "$tmp/empty-types.json"
+run_upload CF_TYPES_JSON="$tmp/empty-types.json" CF_GAME_VERSIONS='26.2' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+if [[ $rc -ne 0 ]] && grep -q 'returned no version types' "$tmp/out"; then
+  pass "empty version-types with prefixes set fails with a hint"
+else
+  fail "empty version-types: rc=$rc $(cat "$tmp/out")"
+fi
+
+run_upload CF_GAME_VERSIONS=' , ' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+if [[ $rc -ne 0 ]] && grep -q 'no game versions given' "$tmp/out"; then
+  pass "empty game versions are rejected"
+else
+  fail "empty game versions: rc=$rc $(cat "$tmp/out")"
+fi
+
+run_upload CF_RELEASE_TYPE=rc CF_GAME_VERSIONS='26.2' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+if [[ $rc -ne 0 ]] && grep -q 'CF_RELEASE_TYPE must be' "$tmp/out"; then
+  pass "invalid release type is rejected"
+else
+  fail "invalid release type: rc=$rc"
+fi
+
+mkdir -p "$tmp/nojq"; ln -s "$(command -v bash)" "$tmp/nojq/bash"; ln -s "$(command -v curl)" "$tmp/nojq/curl"
+run_upload PATH="$tmp/nojq" CF_GAME_VERSIONS='26.2' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+if [[ $rc -ne 0 ]] && grep -q 'jq is required' "$tmp/out"; then
+  pass "missing jq is reported"
+else
+  fail "missing jq: rc=$rc $(cat "$tmp/out")"
+fi
+
+# --- real upload path against a local mock of the Upload API (needs python3) ----------------
+mock_pid=""
+start_mock() { # $1 = types json ("-" = empty body), $2 = upload status sequence
+  stop_mock
+  rm -rf "$tmp/mock"; mkdir -p "$tmp/mock"
+  python3 "$here/mock_curseforge.py" "$tmp/mock/port" "$tmp/mock" "$3" "$1" "$2" &
+  mock_pid=$!
+  for _ in $(seq 50); do [[ -s "$tmp/mock/port" ]] && break; sleep 0.1; done
+  mock_url="http://127.0.0.1:$(cat "$tmp/mock/port")"
+}
+stop_mock() { if [[ -n "$mock_pid" ]]; then kill "$mock_pid" 2>/dev/null || true; wait "$mock_pid" 2>/dev/null || true; mock_pid=""; fi; }
+trap 'stop_mock; rm -rf "$tmp"' EXIT
+
+run_real() { # like run_upload, but uploads to the mock
+  run_upload CF_DRY_RUN=false CF_TOKEN=test-token CF_API_BASE="$mock_url/" CF_RETRY_DELAY=1 \
+    CF_VERSIONS_JSON= CF_TYPES_JSON= "$@"
+}
+
+if command -v python3 >/dev/null; then
+  # changelog with markdown, quotes, backslashes, curl -F specials (; , = @ <), tabs, CRLF and unicode
+  changelog=$'## What\'s new\n\n* "quoted" & \'single\' `code` \\backslash\\ $HOME $(id)\n* semi;colon, comma; type=text/plain;filename=x\n@notafile <notafile\n\tTab — ünïcödé ✨ 日本語\r\nlast line'
+  mkdir -p "$tmp/extra dir"; printf 'x' > "$tmp/extra dir/my mod-1.0.0-extra.jar"
+  start_mock "$here/fixtures/types.json" 200 "$here/fixtures/versions.json"
+  : > "$tmp/github_output"
+  run_real CF_CHANGELOG="$changelog" CF_DISPLAY_NAME='Enchantaholic 1.2.0 "beta" (Fabric)' \
+    CF_GAME_VERSIONS=$'26.2\nFabric' CF_RELATIONS=' fabric-api : requiredDependency , modmenu:optionalDependency ' \
+    bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar" "$tmp/enchantaholic-1.2.0-beta.1-sources.jar" "$tmp/extra dir/my mod-1.0.0-extra.jar"
+  u0="$tmp/mock/upload-0.json"
+  if [[ $rc -eq 0 ]] && jq -e --arg c "$changelog" '.metadata.changelog == $c and .token == "test-token"
+        and .metadata_content_type == "application/json" and .path == "/api/projects/1/upload-file"
+        and .metadata.displayName == "Enchantaholic 1.2.0 \"beta\" (Fabric)" and .metadata.gameVersions == [7499,16498]
+        and .metadata.relations.projects == [{"slug":"fabric-api","type":"requiredDependency"},{"slug":"modmenu","type":"optionalDependency"}]
+        and .filename == "enchantaholic-1.2.0-beta.1.jar" and .file == "jar"' "$u0" >/dev/null; then
+    pass "upload: tricky changelog/display name survive multipart + JSON escaping byte-for-byte"
+  else
+    fail "upload metadata: rc=$rc $(cat "$tmp/out"; cat "$u0" 2>/dev/null)"
+  fi
+  if jq -e '.metadata.parentFileID == 1001 and (.metadata | has("gameVersions") | not) and .filename == "my mod-1.0.0-extra.jar"' \
+       "$tmp/mock/upload-2.json" >/dev/null 2>&1 \
+     && grep -qx 'file-id=1001' "$tmp/github_output" && grep -qx 'file-ids=1001,1002,1003' "$tmp/github_output"; then
+    pass "upload: multiple child files (incl. space in name) attach to the primary; outputs file-id(s)"
+  else
+    fail "child uploads: $(cat "$tmp/github_output"; cat "$tmp/mock/upload-2.json" 2>/dev/null)"
+  fi
+
+  start_mock "$here/fixtures/types.json" 503,502,200 "$here/fixtures/versions.json"
+  run_real CF_GAME_VERSIONS='26.2' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+  if [[ $rc -eq 0 ]] && [[ -f "$tmp/mock/upload-2.json" && ! -f "$tmp/mock/upload-3.json" ]]; then
+    pass "upload: transient 503/502 are retried, then succeed"
+  else
+    fail "retry on 5xx: rc=$rc $(cat "$tmp/out")"
+  fi
+
+  start_mock "$here/fixtures/types.json" 400 "$here/fixtures/versions.json"
+  run_real CF_GAME_VERSIONS='26.2' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+  if [[ $rc -ne 0 ]] && grep -q 'failed (HTTP 400).*mock failure 400' "$tmp/out" && [[ ! -f "$tmp/mock/upload-1.json" ]]; then
+    pass "upload: HTTP 400 fails once (no retry) and shows the API error"
+  else
+    fail "HTTP 400: rc=$rc $(cat "$tmp/out")"
+  fi
+
+  start_mock - 200 "$here/fixtures/versions-bedrock.json"
+  run_real CF_TYPE_PREFIXES='' CF_GAME_VERSIONS='26.50' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+  if [[ $rc -eq 0 ]] && jq -e '.metadata.gameVersions == [15002]' "$tmp/mock/upload-0.json" >/dev/null; then
+    pass "upload: Bedrock-like host (empty version-types body) works with CF_TYPE_PREFIXES=''"
+  else
+    fail "Bedrock mock: rc=$rc $(cat "$tmp/out")"
+  fi
+
+  run_real CF_TOKEN=wrong CF_GAME_VERSIONS='26.2' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+  if [[ $rc -ne 0 ]] && [[ ! -f "$tmp/mock/upload-1.json" ]]; then
+    pass "upload: rejected token fails before any upload"
+  else
+    fail "bad token: rc=$rc $(cat "$tmp/out")"
+  fi
+  stop_mock
+else
+  echo "skip - python3 not found: mock upload tests"
 fi
 
 # --- file globs used by the callers (release.yml / release-caller.yml) ------------------------

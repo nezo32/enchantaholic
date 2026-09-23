@@ -61,8 +61,8 @@ Details: [docs/ci/RELEASING.md](docs/ci/RELEASING.md).
 Run the same checks as CI:
 
 ```bash
-cd fabric && ./gradlew build                                              # Java 25; compiles, tests, builds the jar
-cd bedrock && npm ci && npm run lint && npm test && npm run package       # Node 24; builds dist/*.mcaddon
+(cd fabric && ./gradlew build)                                            # Java 25; compiles, tests, builds the jar
+(cd bedrock && npm ci && npm run lint && npm test && npm run package)     # Node 24; builds dist/*.mcaddon
 ```
 
 If you changed `.github/` or `scripts/`:

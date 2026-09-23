@@ -136,7 +136,7 @@ Settings → Secrets and variables → Actions:
 | variable (optional) | `CURSEFORGE_GAME_VERSIONS` | default `26.2,26.3,Fabric,Java 25,Client,Server` |
 | variable (optional) | `CURSEFORGE_BEDROCK_PROJECT_ID` | Bedrock add-on project id. Empty = Bedrock upload skipped |
 | variable (optional) | `CURSEFORGE_BEDROCK_API_BASE` | default `https://minecraft-bedrock.curseforge.com` |
-| variable (optional) | `CURSEFORGE_BEDROCK_GAME_VERSIONS` | Bedrock version names; required when the Bedrock project id is set |
+| variable (optional) | `CURSEFORGE_BEDROCK_GAME_VERSIONS` | default `26.50` (Bedrock version names, e.g. `26.40,26.50`) |
 
 ```bash
 gh secret set CURSEFORGE_TOKEN
@@ -147,8 +147,16 @@ When a new patch of a supported Minecraft version ships (for example `26.2.1`), 
 
 ### Confirm the CurseForge names
 
-The version names are not verified until they are checked with a real token. Do this once, and again whenever you
-change the variables:
+The defaults were verified against the live API with a real token (September 2026):
+
+- Java host `https://minecraft.curseforge.com`: `26.2` = 16498 (type `minecraft-26-2`), `26.3` = 17045
+  (type `minecraft-26-3`), `Fabric` = 7499, `Java 25` = 14454, `Client` = 9638, `Server` = 9639. There is also a
+  `26.3-snapshot` (type `minecraft-26-snapshots`); names match exactly, so `26.3` never picks it.
+- Bedrock host `https://minecraft-bedrock.curseforge.com`: `/api/game/versions` lists versions such as `26.40` and
+  `26.50` (all of one type), while `/api/game/version-types` returns no usable list. The Bedrock job therefore
+  passes `version-type-prefixes: ""`, and the script then does not fetch version types at all.
+
+Check again whenever you change the variables:
 
 ```bash
 T=<token>
@@ -161,8 +169,8 @@ CF_GAME_VERSIONS='26.2,26.3,Fabric,Java 25,Client,Server' CF_RELATIONS='fabric-a
   bash scripts/curseforge-upload.sh LICENSE
 ```
 
-For Bedrock, run the first command against `CURSEFORGE_BEDROCK_API_BASE`. If it does not list Bedrock versions,
-leave `CURSEFORGE_BEDROCK_PROJECT_ID` unset and upload the `.mcaddon` from the GitHub release by hand.
+For Bedrock, list the names with `curl -fsS -H "X-Api-Token: $T" https://minecraft-bedrock.curseforge.com/api/game/versions | jq -r '.[].name'`
+and dry-run with `CF_API_BASE=https://minecraft-bedrock.curseforge.com CF_TYPE_PREFIXES= CF_GAME_VERSIONS=26.50`.
 
 ### First release
 

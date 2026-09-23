@@ -252,14 +252,17 @@ needed: no secret, no variables.
 **Node project.** Delete the Gradle `build` job, uncomment the Node `build` block, and set `primary-file` to your
 package, for example `"*.mcaddon"`, with `additional-files: ""`.
 
-**Bedrock add-on on CurseForge.** Bedrock is a separate CurseForge game, so it has its own host and version types:
+**Bedrock add-on on CurseForge.** Bedrock is a separate CurseForge game with its own host (verified with a real
+token, September 2026):
 ```yaml
-      api-base: https://minecraft-bedrock.curseforge.com   # confirm with the token, see section 6
+      api-base: https://minecraft-bedrock.curseforge.com
       primary-file: "*.mcaddon"
       additional-files: ""
-      version-type-prefixes: ""                            # search all version types of that game
+      game-versions: "26.50"                               # Bedrock names, e.g. 26.40, 26.50
+      version-type-prefixes: ""                            # required: search all version types of that game
 ```
-Confirm the host once with your token: `GET <host>/api/game/versions` must return Bedrock versions.
+`version-type-prefixes: ""` is required for Bedrock: its `/api/game/version-types` returns no usable list, and with
+empty prefixes the script does not fetch it. All Bedrock versions share one type.
 
 **Several artifacts from one repository (monorepo).** Use one build job per project, each with its own
 `artifact-name`; attach all of them with `artifact-pattern: "{a,b}"` on the release job, and use one CurseForge job per

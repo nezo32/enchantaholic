@@ -102,7 +102,7 @@ jobs:
       api-base: ${{ vars.CURSEFORGE_BEDROCK_API_BASE || 'https://minecraft-bedrock.curseforge.com' }}
       artifact-pattern: bedrock-addon
       primary-file: "enchantaholic-*.mcaddon"
-      game-versions: ${{ vars.CURSEFORGE_BEDROCK_GAME_VERSIONS }}
+      game-versions: ${{ vars.CURSEFORGE_BEDROCK_GAME_VERSIONS || '26.50' }}
       version-type-prefixes: ""
       release-type: ${{ needs.version.outputs.release-type }}
       display-name: Enchantaholic ${{ needs.version.outputs.version }} (Bedrock)

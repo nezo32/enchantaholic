@@ -107,9 +107,11 @@ upload() { # $1 = file, $2 = metadata json
     jq . <<<"$2" >&2; echo 0; return
   fi
   local resp code
+  # metadata goes through a file: an inline -F value would be cut at the first ';' (e.g. in the changelog)
+  printf '%s' "$2" > "$tmp/metadata.json"
   resp="$(curl -sS --retry 3 --retry-delay "$((RETRY_DELAY * 2))" -w '\n%{http_code}' \
     -H "X-Api-Token: $CF_TOKEN" \
-    -F "metadata=$2;type=application/json" \
+    -F "metadata=<$tmp/metadata.json;type=application/json" \
     -F "file=@$1" \
     "$API/projects/$CF_PROJECT_ID/upload-file")"
   code="${resp##*$'\n'}"; resp="${resp%$'\n'*}"

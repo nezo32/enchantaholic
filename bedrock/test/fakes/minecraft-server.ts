@@ -147,24 +147,110 @@ function ns(id: string): string {
   return id.includes(":") ? id : `minecraft:${id}`;
 }
 
+// ───────────────────────────── execution privileges ─────────────────────────────
+
+/**
+ * Simulated script execution privilege (see `@privilege` tags in the 2.10.0 typings):
+ *   - "early":      top-level module evaluation and system.beforeEvents.startup. Only APIs tagged
+ *                   `early-execution-allowed` may be called; world reads/writes throw.
+ *   - "restricted": before-event callbacks (world.beforeEvents.*) and custom-command callbacks.
+ *                   APIs tagged `no-restricted-execution` throw.
+ * The fake enforces this for the APIs listed below; test/integration/fake-fidelity.test.ts checks
+ * the lists against the real index.d.ts.
+ */
+export type ExecMode = "normal" | "early" | "restricted";
+let execMode: ExecMode = "normal";
+
+export class FakePrivilegeError extends Error {
+  override name = "FakePrivilegeError";
+}
+
+/** Members tagged `@privilege no-restricted-execution` in 2.10.0 that the fake enforces. */
+export const NO_RESTRICTED_APIS: ReadonlySet<string> = new Set([
+  "Container.setItem",
+  "EntityEquippableComponent.setEquipment",
+  "ItemStack.setLore",
+  "ItemEnchantableComponent.addEnchantment",
+  "ItemEnchantableComponent.addEnchantments",
+  "ItemEnchantableComponent.removeEnchantment",
+  "ItemEnchantableComponent.removeAllEnchantments",
+  "Entity.addEffect",
+  "Entity.removeEffect",
+  "Entity.applyDamage",
+  "Player.playSound",
+  "Player.setGameMode",
+  "ScreenDisplay.setActionBar",
+  "ScreenDisplay.setTitle",
+  "CustomCommandRegistry.registerCommand",
+  "CustomCommandRegistry.registerEnum",
+  "PlayerBreakBlockAfterEventSignal.subscribe",
+  "EntityHurtBeforeEventSignal.subscribe",
+]);
+
+/** Members that are NOT `early-execution-allowed` in 2.10.0 and that the fake rejects in early mode. */
+export const EARLY_FORBIDDEN_APIS: ReadonlySet<string> = new Set([
+  "World.getDynamicProperty",
+  "World.setDynamicProperty",
+  "World.getAllPlayers",
+  "World.sendMessage",
+  "EnchantmentTypes.getAll",
+  "EnchantmentTypes.get",
+]);
+
+/** Runs `fn` with the given simulated privilege, restoring the previous one afterwards. */
+export function _withExecMode<T>(mode: ExecMode, fn: () => T): T {
+  const prev = execMode;
+  execMode = mode;
+  try {
+    return fn();
+  } finally {
+    execMode = prev;
+  }
+}
+
+/** Sets the simulated privilege until changed again (for async module evaluation). */
+export function _setExecMode(mode: ExecMode): void {
+  execMode = mode;
+}
+
+export function _execMode(): ExecMode {
+  return execMode;
+}
+
+function guard(api: string): void {
+  if (execMode === "restricted" && NO_RESTRICTED_APIS.has(api)) {
+    throw new FakePrivilegeError(`Native function [${api}] does not have required privileges.`);
+  }
+  if (execMode === "early" && EARLY_FORBIDDEN_APIS.has(api)) {
+    throw new FakePrivilegeError(`Native function [${api}] cannot be used during early execution.`);
+  }
+}
+
 // ───────────────────────────── signals ─────────────────────────────
 
 export class FakeSignal<T> {
   readonly listeners: Array<(ev: T) => void> = [];
 
+  /** `mode`: the privilege the engine runs callbacks with (before-events: restricted; startup: early). */
+  constructor(readonly mode: ExecMode = "normal") {}
+
   subscribe<F extends (ev: T) => void>(cb: F): F {
+    if (execMode === "restricted") throw new FakePrivilegeError("subscribe() does not have required privileges.");
     this.listeners.push(cb);
     return cb;
   }
 
   unsubscribe(cb: (ev: T) => void): void {
+    if (execMode === "restricted") throw new FakePrivilegeError("unsubscribe() does not have required privileges.");
     const i = this.listeners.indexOf(cb);
     if (i >= 0) this.listeners.splice(i, 1);
   }
 
-  /** Test helper: deliver an event to every subscriber (exceptions propagate). */
+  /** Test helper: deliver an event to every subscriber with the signal's privilege (exceptions propagate). */
   emit(ev: T): void {
-    for (const cb of [...this.listeners]) cb(ev);
+    _withExecMode(this.mode, () => {
+      for (const cb of [...this.listeners]) cb(ev);
+    });
   }
 
   get count(): number {
@@ -189,7 +275,7 @@ type SignalBag = KnownSignals &
   Record<string, FakeSignal<any>> & { _all(): Map<string, FakeSignal<unknown>> };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-function signalBag(): SignalBag {
+function signalBag(modeOf: (name: string) => ExecMode = () => "normal"): SignalBag {
   const map = new Map<string, FakeSignal<unknown>>();
   return new Proxy({} as SignalBag, {
     get(_t, prop) {
@@ -197,7 +283,7 @@ function signalBag(): SignalBag {
       if (typeof prop !== "string") return undefined;
       let s = map.get(prop);
       if (!s) {
-        s = new FakeSignal<unknown>();
+        s = new FakeSignal<unknown>(modeOf(prop));
         map.set(prop, s);
       }
       return s;
@@ -270,6 +356,7 @@ export class EnchantmentType {
 
 export class EnchantmentTypes {
   static get(enchantmentId: string): EnchantmentType | undefined {
+    guard("EnchantmentTypes.get");
     const id = ns(enchantmentId);
     const max = enchantFixture.get(id);
     if (max === undefined) return undefined;
@@ -282,6 +369,7 @@ export class EnchantmentTypes {
   }
 
   static getAll(): EnchantmentType[] {
+    guard("EnchantmentTypes.getAll");
     return [...enchantFixture.keys()].map((id) => EnchantmentTypes.get(id) as EnchantmentType);
   }
 }
@@ -353,12 +441,14 @@ export class FakeEnchantable {
   }
 
   addEnchantment(enchantment: EnchantmentLike): void {
+    guard("ItemEnchantableComponent.addEnchantment");
     const id = this.check(enchantment);
     if (!this.accepts(id)) throw new EnchantmentTypeNotCompatibleError(`${id} not compatible`);
     this.levels.set(id, enchantment.level);
   }
 
   addEnchantments(enchantments: EnchantmentLike[]): void {
+    guard("ItemEnchantableComponent.addEnchantments");
     for (const e of enchantments) this.addEnchantment(e);
   }
 
@@ -384,10 +474,12 @@ export class FakeEnchantable {
   }
 
   removeEnchantment(enchantmentType: EnchantmentType | string): void {
+    guard("ItemEnchantableComponent.removeEnchantment");
     this.levels.delete(typeIdOf(enchantmentType));
   }
 
   removeAllEnchantments(): void {
+    guard("ItemEnchantableComponent.removeAllEnchantments");
     this.levels.clear();
   }
 
@@ -498,6 +590,7 @@ export class FakeItemStack {
 
   /** Enforces the 20 lines × 50 chars limit like the engine (throws on violation). */
   setLore(loreList?: Array<string | object>): void {
+    guard("ItemStack.setLore");
     const list = loreList ?? [];
     if (list.length > LORE_LIMIT_LINES) throw new Error(`Lore has ${list.length} lines (max ${LORE_LIMIT_LINES})`);
     for (const line of list) {
@@ -598,6 +691,7 @@ export class FakeContainer {
   }
 
   setItem(slot: number, itemStack?: FakeItemStack): void {
+    guard("Container.setItem");
     this.check(slot);
     this.writes.push({ slot, item: itemStack });
     this.slots[slot] = itemStack?.clone();
@@ -639,6 +733,7 @@ export class FakeEquippable {
   }
 
   setEquipment(slot: EquipmentSlot, itemStack?: FakeItemStack): boolean {
+    guard("EntityEquippableComponent.setEquipment");
     this.writes.push({ slot, item: itemStack });
     if (this.rejectWrites) return false;
     if (slot === EquipmentSlot.Mainhand && this.mainhand) {
@@ -728,6 +823,7 @@ export class FakeEntity {
     duration: number,
     options?: { amplifier?: number; showParticles?: boolean },
   ): FakeEffect | undefined {
+    guard("Entity.addEffect");
     const id = ns(typeof effectType === "string" ? effectType : effectType.getName());
     this.addedEffects.push({ id, duration, options });
     const effect: FakeEffect = {
@@ -743,10 +839,12 @@ export class FakeEntity {
   }
 
   removeEffect(effectType: string): boolean {
+    guard("Entity.removeEffect");
     return this.effects.delete(ns(effectType));
   }
 
   applyDamage(amount: number, options?: unknown): boolean {
+    guard("Entity.applyDamage");
     this.damageLog.push({ amount, options });
     return true;
   }
@@ -757,9 +855,11 @@ export class FakeScreenDisplay {
   readonly titles: unknown[] = [];
   readonly isValid = true;
   setActionBar(text: unknown): void {
+    guard("ScreenDisplay.setActionBar");
     this.actionBars.push(text);
   }
   setTitle(title: unknown): void {
+    guard("ScreenDisplay.setTitle");
     this.titles.push(title);
   }
 }
@@ -791,10 +891,12 @@ export class FakePlayer extends FakeEntity {
   }
 
   setGameMode(gameMode?: GameMode): void {
+    guard("Player.setGameMode");
     this.gameMode = gameMode ?? GameMode.Survival;
   }
 
   playSound(soundId: string, soundOptions?: unknown): void {
+    guard("Player.playSound");
     this.sounds.push({ soundId, options: soundOptions });
   }
 
@@ -812,38 +914,45 @@ export class FakeCustomCommandRegistry {
   readonly commands = new Map<string, { command: mc.CustomCommand; callback: FakeCommandCallback }>();
 
   registerEnum(name: string, values: string[]): void {
+    guard("CustomCommandRegistry.registerEnum");
     if (this.enums.has(name)) throw new Error(`Enum ${name} already registered`);
     this.enums.set(name, [...values]);
   }
 
   registerCommand(customCommand: mc.CustomCommand, callback: FakeCommandCallback): void {
+    guard("CustomCommandRegistry.registerCommand");
     if (!customCommand.name.includes(":")) throw new Error("Custom command names must be namespaced");
     if (this.commands.has(customCommand.name)) throw new Error(`Command ${customCommand.name} already registered`);
     this.commands.set(customCommand.name, { command: customCommand, callback });
   }
 
-  /** Test helper: invoke a registered command. */
+  /** Test helper: invoke a registered command (callbacks run in restricted execution, like the engine). */
   invoke(name: string, origin: unknown, ...args: unknown[]): unknown {
     const entry = this.commands.get(name);
     if (!entry) throw new Error(`No command ${name}`);
-    return entry.callback(origin, ...args);
+    return _withExecMode("restricted", () => entry.callback(origin, ...args));
   }
 }
 
 // ───────────────────────────── world / system ─────────────────────────────
 
+const restrictedSignals = (): ExecMode => "restricted";
+const systemBeforeMode = (name: string): ExecMode => (name === "startup" ? "early" : "restricted");
+
 class FakeWorld {
   afterEvents: SignalBag = signalBag();
-  beforeEvents: SignalBag = signalBag();
+  beforeEvents: SignalBag = signalBag(restrictedSignals);
   readonly props = new Map<string, boolean | number | string | object>();
   readonly messages: unknown[] = [];
   players: FakePlayer[] = [];
 
   getDynamicProperty(identifier: string): boolean | number | string | undefined {
+    guard("World.getDynamicProperty");
     return this.props.get(identifier) as boolean | number | string | undefined;
   }
 
   setDynamicProperty(identifier: string, value?: boolean | number | string | object): void {
+    guard("World.setDynamicProperty");
     if (value === undefined) this.props.delete(identifier);
     else this.props.set(identifier, value);
   }
@@ -853,6 +962,7 @@ class FakeWorld {
   }
 
   getAllPlayers(): FakePlayer[] {
+    guard("World.getAllPlayers");
     return [...this.players];
   }
 
@@ -861,12 +971,13 @@ class FakeWorld {
   }
 
   sendMessage(message: unknown): void {
+    guard("World.sendMessage");
     this.messages.push(message);
   }
 
   _reset(): void {
     this.afterEvents = signalBag();
-    this.beforeEvents = signalBag();
+    this.beforeEvents = signalBag(restrictedSignals);
     this.props.clear();
     this.messages.length = 0;
     this.players = [];
@@ -880,7 +991,7 @@ interface IntervalEntry {
 }
 
 class FakeSystem {
-  beforeEvents: SignalBag = signalBag();
+  beforeEvents: SignalBag = signalBag(systemBeforeMode);
   afterEvents: SignalBag = signalBag();
   currentTick = 0;
   private nextId = 1;
@@ -932,7 +1043,7 @@ class FakeSystem {
   }
 
   _reset(): void {
-    this.beforeEvents = signalBag();
+    this.beforeEvents = signalBag(systemBeforeMode);
     this.afterEvents = signalBag();
     this.currentTick = 0;
     this.runQueue.length = 0;
@@ -946,6 +1057,7 @@ export const system = new FakeSystem();
 
 /** Reset all fake global state (call in beforeEach). */
 export function resetFakes(): void {
+  execMode = "normal";
   world._reset();
   system._reset();
   _setEnchantFixture(VANILLA_ENCHANT_MAX);

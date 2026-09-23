@@ -6,8 +6,8 @@ Branch and PR rules: [CONTRIBUTING.md](../../CONTRIBUTING.md).
 A release is a tag. Pushing `vX.Y.Z` on a commit of `main` starts `.github/workflows/release.yml`, which in one run:
 
 1. `version`: parses the tag and checks that it is on `main`.
-2. `build-mod` and `build-addon`: `./gradlew build -Pmod_version=X.Y.Z` in `fabric/`, and `npm ci`, lint, test,
-   `npm run package` with `VERSION=X.Y.Z` in `bedrock/`.
+2. `build-mod` and `build-addon`: `./gradlew build -Pmod_version=X.Y.Z` in `fabric/`, and `npm ci`, typecheck,
+   lint, test, `npm run package` with `VERSION=X.Y.Z` in `bedrock/`.
 3. `github-release`: the release "Enchantaholic X.Y.Z", with generated notes and three assets:
    `enchantaholic-X.Y.Z.jar`, `enchantaholic-X.Y.Z-sources.jar` and `enchantaholic-X.Y.Z.mcaddon`.
 4. `curseforge-mod`: uploads the jar with the sources jar as a child file, using the release notes as the changelog.
@@ -62,7 +62,8 @@ There are no long-lived release branches. A tag on anything other than a commit 
   The CurseForge jobs resolve the version names and print the metadata without uploading. The GitHub release for that
   tag is still rebuilt and updated.
 - **CurseForge has no idempotency:** re-running a successful upload creates a second file. Delete the duplicate in the
-  CurseForge UI.
+  CurseForge UI. If an upload failed with HTTP 5xx or a curl error, look at the project's Files page before
+  re-running: the file may have been created anyway (the script deliberately does not retry those).
 - **Wrong tag pushed:** if the run already failed or has not published yet, delete the tag
   (`git push --delete origin vX.Y.Z && git tag -d vX.Y.Z`) and any draft/created GitHub release. If it already
   reached CurseForge, do not reuse the version: release the next patch.

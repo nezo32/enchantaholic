@@ -181,7 +181,7 @@ uploaded as `<artifact-name>-reports`.
 | `working-directory` | `.` | Directory that contains `package.json` and `package-lock.json` |
 | `node-version` | `24` | |
 | `install-command` | `npm ci` | Trusted shell command, see [Security](#9-security) |
-| `check-command` | `""` | Lint/test command, for example `npm run lint --if-present && npm test --if-present`. Empty = skip |
+| `check-command` | `""` | Typecheck/lint/test command, for example `npm run typecheck --if-present && npm run lint --if-present && npm test --if-present`. Empty = skip |
 | `build-command` | `npm run build` | Runs with env `VERSION` |
 | `version` | `""` | Exported to the build as env `VERSION` |
 | `artifact-name` | `node-dist` | |
@@ -196,7 +196,7 @@ Output: `artifact-name`. Secrets: none. Permissions: `contents: read`.
 |---|---|---|
 | `tag` | **required** | Tag of the release |
 | `name` | `""` | Release title. Empty = the tag |
-| `prerelease` | `false` | Boolean. Pre-releases are never marked "latest" |
+| `prerelease` | `false` | Boolean. Pre-releases are never marked "latest"; other releases use GitHub's `legacy` rule (newest date + highest SemVer), so re-running an old tag does not make it "latest" |
 | `draft` | `false` | |
 | `generate-notes` | `true` | Notes from merged PRs, grouped by the caller repo's `.github/release.yml` |
 | `artifact-pattern` | `*` | Which artifacts of the run to attach, e.g. `dist` or `{mod,addon}` |
@@ -221,7 +221,7 @@ the tag is updated in place and its assets are overwritten.
 | `relations` | `""` | `slug:type,...`; type is `requiredDependency`, `optionalDependency`, `embeddedLibrary`, `tool` or `incompatible` |
 | `changelog` | `""` | Markdown. Empty = body of the GitHub release for `tag` |
 | `tag` | `""` | Tag whose GitHub release body becomes the changelog |
-| `dry-run` | `false` | Resolve names and print the metadata, but do not upload. Still needs the token |
+| `dry-run` | `false` | Resolve names and print the metadata, but do not upload. Still needs the token (the version list is read from the API) |
 
 | Secret | Description |
 |---|---|
@@ -305,8 +305,9 @@ When a new Minecraft version ships, add it to the `CURSEFORGE_GAME_VERSIONS` var
 
 ## 7. Tag rules
 
-Tags must be strict SemVer with the prefix: `vMAJOR.MINOR.PATCH[-prerelease][+build]`. The release trigger only
-matches `v<digit>.<digit>.<digit>...`, and `reusable-version.yml` rejects anything that is not strict SemVer.
+Tags must be SemVer with the prefix and without build metadata: `vMAJOR.MINOR.PATCH[-prerelease]`. The release
+trigger only matches `v<digit>.<digit>.<digit>...`, and `reusable-version.yml` rejects anything else, including
+`+build` suffixes (they would end up in some file names and display names but not others).
 
 | Tag | Version | GitHub pre-release | CurseForge type |
 |---|---|---|---|
@@ -314,7 +315,7 @@ matches `v<digit>.<digit>.<digit>...`, and `reusable-version.yml` rejects anythi
 | `v1.2.3-beta.1` | `1.2.3-beta.1` | yes | beta |
 | `v1.2.3-rc.1` | `1.2.3-rc.1` | yes | beta |
 | `v1.2.3-alpha.2` | `1.2.3-alpha.2` | yes | alpha |
-| `v1.2.3-rc.1+b5` | `1.2.3-rc.1+b5` | yes | beta |
+| `v1.2.3+b5` | error (build metadata) | | |
 | `v1.2` | error | | |
 
 A pre-release starting with `alpha`, `a.`, `dev`, `snapshot` or `nightly` maps to `alpha`; any other pre-release
@@ -328,7 +329,9 @@ in the `version` job, before anything is built or published.
 - **Rebuild and update the GitHub release:** Actions → Release → Run workflow with the existing `tag`. The release is
   updated in place and its assets are replaced. Tick `skip-curseforge` unless you also want a new CurseForge upload.
 - **CurseForge is not idempotent.** Every upload creates a new file. Re-running the CurseForge job after a successful
-  upload duplicates the file; delete the extra one in the CurseForge UI if that happens.
+  upload duplicates the file; delete the extra one in the CurseForge UI if that happens. For the same reason the
+  script never re-sends an upload that reached CurseForge: it retries only DNS/connect/TLS failures. If the job fails
+  with an HTTP 5xx or a curl error, check the project's Files page first; the file may exist anyway.
 - **Only the CurseForge job failed** (for example a wrong version name): fix the variable, then use "Re-run failed
   jobs" on the same run. The build artifacts are kept for `retention-days` (7 by default), so nothing is rebuilt.
 - **Validate without uploading:** run the workflow with `curseforge-dry-run: true`. Note that this still updates the
@@ -347,8 +350,12 @@ in the `version` job, before anything is built or published.
   when you want pipeline changes. Once the workflows live in a repository with release tags
   ([section 11](#11-moving-to-a-dedicated-repository)), Dependabot (`package-ecosystem: github-actions`) can bump
   the references for you.
-- The `version` job refuses tags that are not on the release branch, so a tag pushed on an unreviewed branch cannot
-  publish.
+- The `version` job refuses tags that are not on the release branch, so a tag pushed by mistake on a feature branch
+  does not publish. It is a guard against mistakes, not against someone with push access: a tag push runs the
+  workflow file of the tagged commit, which that person could have edited. If others can push to the repository,
+  restrict who may create `v*` tags with a tag ruleset.
+- The CurseForge job prints the changelog (built from PR titles) with workflow commands disabled, so a PR title
+  like `::error::...` cannot inject runner commands.
 
 ## 10. Private host repository
 

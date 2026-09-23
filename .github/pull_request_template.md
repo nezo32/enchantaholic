@@ -16,6 +16,6 @@
 ## Checklist
 
 - [ ] Branch is named `<type>/<kebab-name>` and targets `main`
-- [ ] Local checks pass (`cd fabric && ./gradlew build`, `cd bedrock && npm ci && npm run lint && npm test && npm run package`)
+- [ ] Local checks pass (`cd fabric && ./gradlew build`, `cd bedrock && npm ci && npm run typecheck && npm run lint && npm test && npm run package`)
 - [ ] No hand-edited versions (`mod_version`, `manifest.json`): the version comes from the release tag
 - [ ] Docs updated if behaviour or workflows changed

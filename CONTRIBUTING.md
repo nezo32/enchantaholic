@@ -48,7 +48,7 @@ sentence that makes sense to players: "Add Vein Miner enchantment", not "vein mi
 
 - Only maintainers create releases.
 - A release is an annotated tag on a commit of `main`: `vMAJOR.MINOR.PATCH`, optionally with `-alpha.N`, `-beta.N` or
-  `-rc.N`. A tag on any other branch is rejected.
+  `-rc.N` (no `+build` suffix). A tag on any other branch is rejected.
 - Everything after the tag is automated: the jar and the `.mcaddon` are built and attached to a GitHub release, then
   uploaded to CurseForge.
 - The version lives **only in the tag**. Never edit `mod_version` in `fabric/gradle.properties` or the versions in
@@ -62,7 +62,7 @@ Run the same checks as CI:
 
 ```bash
 (cd fabric && ./gradlew build)                                            # Java 25; compiles, tests, builds the jar
-(cd bedrock && npm ci && npm run lint && npm test && npm run package)     # Node 24; builds dist/*.mcaddon
+(cd bedrock && npm ci && npm run typecheck && npm run lint && npm test && npm run package)  # Node 24; builds dist/*.mcaddon
 ```
 
 If you changed `.github/` or `scripts/`:

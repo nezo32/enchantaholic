@@ -74,7 +74,7 @@ else
   fail "(c) unexpected child metadata: ${child:-<none>}"
 fi
 
-if grep -qx 'file-id=0' "$tmp/github_output"; then
+if grep -qx 'file-id=0' "$tmp/github_output" && grep -q '^\[dry-run\] not uploaded' "$tmp/out"; then
   pass "file-id written to GITHUB_OUTPUT"
 else
   fail "GITHUB_OUTPUT: $(cat "$tmp/github_output")"
@@ -187,12 +187,14 @@ if command -v python3 >/dev/null; then
     fail "child uploads: $(cat "$tmp/github_output"; cat "$tmp/mock/upload-2.json" 2>/dev/null)"
   fi
 
-  start_mock "$here/fixtures/types.json" 503,502,200 "$here/fixtures/versions.json"
+  # a 5xx may still have created the file on CurseForge, so the POST must not be re-sent
+  start_mock "$here/fixtures/types.json" 503,200 "$here/fixtures/versions.json"
   run_real CF_GAME_VERSIONS='26.2' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
-  if [[ $rc -eq 0 ]] && [[ -f "$tmp/mock/upload-2.json" && ! -f "$tmp/mock/upload-3.json" ]]; then
-    pass "upload: transient 503/502 are retried, then succeed"
+  if [[ $rc -ne 0 ]] && [[ -f "$tmp/mock/upload-0.json" && ! -f "$tmp/mock/upload-1.json" ]] \
+     && grep -q 'HTTP 503.*Files page' "$tmp/out"; then
+    pass "upload: HTTP 503 is not retried (no duplicate file) and says to check CurseForge"
   else
-    fail "retry on 5xx: rc=$rc $(cat "$tmp/out")"
+    fail "no retry on 5xx: rc=$rc $(cat "$tmp/out")"
   fi
 
   start_mock "$here/fixtures/types.json" 400 "$here/fixtures/versions.json"
@@ -211,13 +213,24 @@ if command -v python3 >/dev/null; then
     fail "Bedrock mock: rc=$rc $(cat "$tmp/out")"
   fi
 
+  # CF_RETRY_DELAY=1 with 4 retries would take >= 4s if the 403 were retried
+  started=$SECONDS
   run_real CF_TOKEN=wrong CF_GAME_VERSIONS='26.2' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
-  if [[ $rc -ne 0 ]] && [[ ! -f "$tmp/mock/upload-1.json" ]]; then
-    pass "upload: rejected token fails before any upload"
+  if [[ $rc -ne 0 ]] && [[ ! -f "$tmp/mock/upload-1.json" ]] && (( SECONDS - started < 3 )); then
+    pass "upload: rejected token (403) fails at once, before any upload"
   else
     fail "bad token: rc=$rc $(cat "$tmp/out")"
   fi
   stop_mock
+
+  # nothing listening: the request never reached the server, so the upload is retried, then fails
+  run_upload CF_DRY_RUN=false CF_TOKEN=test-token CF_API_BASE="http://127.0.0.1:1" CF_RETRY_DELAY=0 \
+    CF_GAME_VERSIONS='26.2' bash "$script" "$tmp/enchantaholic-1.2.0-beta.1.jar"
+  if [[ $rc -ne 0 ]] && [[ "$(grep -c 'could not reach' "$tmp/out")" -eq 3 ]] && grep -q 'curl exit 7' "$tmp/out"; then
+    pass "upload: connection errors are retried 3 times, then fail"
+  else
+    fail "connection retry: rc=$rc $(cat "$tmp/out")"
+  fi
 else
   echo "skip - python3 not found: mock upload tests"
 fi

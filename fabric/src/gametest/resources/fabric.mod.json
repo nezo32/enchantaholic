@@ -6,7 +6,8 @@
 	"environment": "*",
 	"entrypoints": {
 		"fabric-gametest": [
-			"dev.enchantaholic.test.EnchantaholicGameTests"
+			"dev.enchantaholic.test.EnchantaholicGameTests",
+			"dev.enchantaholic.test.EnchantaholicEdgeGameTests"
 		],
 		"fabric-client-gametest": [
 			"dev.enchantaholic.test.EnchantaholicClientGameTest"

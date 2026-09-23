@@ -25,7 +25,8 @@ public final class Feedback {
 		if (!enchantment.is(EnchantmentTags.CURSE)) {
 			name = name.copy().withStyle(ChatFormatting.AQUA);
 		}
-		return Component.translatable("enchantaholic.message.enchanted",
+		// fallback: server-only installs (vanilla clients have no mod lang)
+		return Component.translatableWithFallback("enchantaholic.message.enchanted", "\u2726 %1$s \u2192 %2$s",
 				stack.getHoverName().copy().withStyle(ChatFormatting.LIGHT_PURPLE),
 				name);
 	}

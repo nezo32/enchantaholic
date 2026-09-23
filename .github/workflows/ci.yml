@@ -65,6 +65,15 @@ jobs:
       artifact-name: fabric-mod-ci
       artifact-files: build/libs/enchantaholic-*.jar
 
+  # Same jar supports 26.2–26.3; build + gametests against the older target too.
+  mod-26_2:
+    uses: ./.github/workflows/reusable-build-gradle.yml
+    with:
+      working-directory: fabric
+      gradle-tasks: build -Pmc=26.2
+      artifact-name: fabric-mod-ci-26.2
+      artifact-files: build/libs/enchantaholic-*.jar
+
   addon:
     uses: ./.github/workflows/reusable-build-node.yml
     with:

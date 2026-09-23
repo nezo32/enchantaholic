@@ -1,0 +1,132 @@
+<p align="center">
+  <img src="docs/branding/curseforge_logo.png" alt="Enchantaholic logo" width="256">
+</p>
+
+<h1 align="center">Enchantaholic</h1>
+
+<p align="center"><em>Break a block. Get enchanted. Never stop.</em></p>
+
+Enchantaholic is a Minecraft mode in which each block you break adds a random enchantment to a random item in your
+inventory. Levels keep stacking past the vanilla caps.
+
+It comes in two versions:
+
+- **Java Edition:** a Fabric mod for Minecraft 26.2–26.3 (in [`fabric/`](fabric/))
+- **Bedrock Edition:** a behavior pack (in [`bedrock/`](bedrock/), see [bedrock/README.md](bedrock/README.md))
+
+## What it does
+
+When the mode is on, each block a player breaks does the following:
+
+1. **Skipped cases:** players in Creative or Spectator, and blocks that break instantly (hardness 0: grass, flowers,
+   torches and so on).
+2. **Item:** one random non-empty slot, from the main inventory (hotbar included), the armor slots and the offhand.
+3. **Enchantment:** a random enchantment from the whole registry, curses included. `Lunge` is only ever given to
+   spears. If no enchantment fits the chosen item, another item is picked, and if none is left nothing happens.
+4. **Level:** if the item already has that enchantment, its level goes up by 1. Otherwise the enchantment is added at
+   level I.
+5. **Feedback:** the actionbar shows the item and its new level, for example `✦ Diamond Pickaxe → Efficiency VI`.
+
+Difficulty and hardcore settings are never changed. Levels beyond X are shown as Roman numerals (XI, XII and so on).
+
+## Java vs Bedrock
+
+| | Java (Fabric) | Bedrock (behavior pack) |
+|---|---|---|
+| Game versions | Minecraft Java 26.2–26.3 | Bedrock 26.50+ |
+| Turning it on | **Enchantaholic Mode** ON/OFF button on the Create World → Game tab, or `/gamerule enchantaholic:enchantaholic true` | Activate the behavior pack when you create the world |
+| Default | Off (game rule `false`) | On while the pack is active |
+| Toggling later | `/gamerule enchantaholic:enchantaholic true\|false` | `/enchantaholic:toggle [on\|off\|status]`, operators only (works with cheats off) |
+| Enchantment/item pairs | Any enchantment on any item (compatibility is not checked) | Only pairs Bedrock accepts: an incompatible pick is rerolled (another enchantment or another item) |
+| Level cap | 255 (Java's hard limit) | No cap on the tracked level. The **real** enchantment stops at the vanilla max, and the true level is kept in a lore line and a dynamic property on the item |
+| Levels above the vanilla max | Real enchantment levels, so vanilla formulas apply at every level (see [Known quirks](#known-quirks-java)) | Extra bonus effects only for Sharpness, Smite, Bane of Arthropods, Power, the Protection family (Protection, Fire/Blast/Projectile Protection, Feather Falling) and Efficiency. Other enchantments show the level only |
+| Achievements | Unaffected | Disabled in the world, because Minecraft disables them for any behavior pack |
+
+## Install
+
+### Java Edition
+
+1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.2 or 26.3, and run the game on Java 25.
+2. Put [Fabric API](https://modrinth.com/mod/fabric-api) and `enchantaholic-<version>.jar` in your `mods/` folder. Get
+   the jar from [GitHub releases](https://github.com/nezo32/enchantaholic/releases) or CurseForge.
+3. Turn the mode on in one of two ways:
+   - **New world:** Create World → Game tab → set **Enchantaholic** to **ON**.
+   - **Existing world:** `/gamerule enchantaholic:enchantaholic true`. The rule is `false` by default.
+
+### Bedrock Edition
+
+1. Download `enchantaholic-<version>.mcaddon` from [GitHub releases](https://github.com/nezo32/enchantaholic/releases)
+   or CurseForge, then open it to import it into Minecraft.
+2. Create a world and activate **Enchantaholic** under **Behavior Packs**.
+3. Optional: operators can use `/enchantaholic:toggle off` / `on` / `status`.
+
+Details and limitations: [bedrock/README.md](bedrock/README.md).
+
+## Known quirks (Java)
+
+The Java mod doesn't change how vanilla handles very high levels. Some examples:
+
+- Enchanted stacks no longer merge with plain ones (enchanted dirt vs. dirt). The whole stack is enchanted at once.
+- Efficiency, Sharpness, Power, Unbreaking, Fortune and Looting scale up to extreme values. High Efficiency breaks
+  almost every block instantly.
+- The Protection family stops helping at vanilla's cap of 80% damage reduction.
+- Knockback, Punch, Riptide and Wind Burst can launch entities (and you) very far.
+- Very high Multishot fires hundreds of projectiles, and very high Frost Walker freezes a huge area. Both can cause lag.
+- Some enchantments (Mending, Infinity, Silk Touch and similar) gain nothing from levels above I.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `fabric/` | Java Edition Fabric mod (Gradle) |
+| `bedrock/` | Bedrock behavior pack (TypeScript, esbuild, vitest) |
+| `.github/workflows/` | CI (`ci.yml`), release (`release.yml`) and the reusable `reusable-*.yml` workflows |
+| `scripts/` | CurseForge upload script and its tests |
+| `docs/ci/` | Release runbook and reusable pipeline docs |
+| `docs/branding/` | Logo, palette, player-facing strings |
+
+## Development
+
+The **Java mod** needs JDK 25. Gradle can also run on Java 21 and download a JDK 25 toolchain.
+
+```bash
+cd fabric
+./gradlew build          # Minecraft 26.3: compile, JUnit, server GameTests; jars in build/libs/
+./gradlew clean build -Pmc=26.2   # the same against 26.2
+```
+
+One jar runs on both 26.2 and 26.3. The Create World toggle is covered by a client GameTest (`./gradlew
+runClientGameTest`). It needs a display (for example Xvfb), so `build` and CI don't run it.
+
+The **Bedrock pack** needs Node 22+ (CI uses 24).
+
+```bash
+cd bedrock
+npm ci
+npm run typecheck && npm run lint && npm test
+npm run package          # dist/enchantaholic-<version>.mcaddon and .mcpack
+```
+
+The in-game checks for Bedrock are listed in
+[bedrock/README.md → Manual in-game checklist](bedrock/README.md#manual-in-game-checklist).
+
+Branch names, PR rules and the full list of local checks are in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Releasing
+
+To release, push an annotated `vX.Y.Z` tag on a commit of `main` (pre-releases use `-alpha.N`, `-beta.N` or `-rc.N`).
+`release.yml` then does the rest:
+
+1. Builds and tests the jar and the `.mcaddon`, stamping the tag's version into them.
+2. Creates the GitHub release with notes generated from PR titles and labels.
+3. Uploads the files to CurseForge.
+
+Don't edit the versions in `fabric/gradle.properties` or `bedrock/**/manifest.json` by hand. The tag sets the version.
+
+- Maintainer runbook: [docs/ci/RELEASING.md](docs/ci/RELEASING.md)
+- How the reusable pipeline works and how other projects can use it:
+  [docs/ci/REUSABLE_RELEASE_PIPELINE.md](docs/ci/REUSABLE_RELEASE_PIPELINE.md)
+
+## License
+
+[MIT](LICENSE) © 2026 nezo

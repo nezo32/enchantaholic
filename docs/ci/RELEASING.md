@@ -86,6 +86,7 @@ linear history, block force pushes and deletion.
 | `actionlint` | `ci.yml` |
 | `scripts` | `ci.yml` |
 | `mod / build` | `ci.yml` → `reusable-build-gradle.yml` |
+| `mod-26_2 / build` | `ci.yml` → `reusable-build-gradle.yml` (`-Pmc=26.2`) |
 | `addon / build` | `ci.yml` → `reusable-build-node.yml` |
 
 The same with the `gh` CLI (classic branch protection):
@@ -95,7 +96,7 @@ gh api -X PUT repos/nezo32/enchantaholic/branches/main/protection --input - <<'J
 {
   "required_status_checks": {
     "strict": true,
-    "contexts": ["branch-name", "actionlint", "scripts", "mod / build", "addon / build"]
+    "contexts": ["branch-name", "actionlint", "scripts", "mod / build", "mod-26_2 / build", "addon / build"]
   },
   "enforce_admins": false,
   "required_pull_request_reviews": { "required_approving_review_count": 0 },

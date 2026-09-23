@@ -16,7 +16,7 @@ main ──●──────────●───────────
 ### `main` is protected
 
 - Changes land only through a pull request.
-- These checks must pass: `branch-name`, `actionlint`, `scripts`, `mod / build`, `addon / build`.
+- These checks must pass: `branch-name`, `actionlint`, `scripts`, `mod / build`, `mod-26_2 / build`, `addon / build`.
 - PRs are **squash-merged**, so history stays linear: one commit per PR.
 - No force-pushes to `main`.
 

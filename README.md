@@ -50,7 +50,7 @@ Difficulty and hardcore settings are never changed. Levels beyond X are shown as
 2. Put [Fabric API](https://modrinth.com/mod/fabric-api) and `enchantaholic-<version>.jar` in your `mods/` folder. Get
    the jar from [GitHub releases](https://github.com/nezo32/enchantaholic/releases) or CurseForge.
 3. Turn the mode on in one of two ways:
-   - **New world:** Create World → Game tab → set **Enchantaholic** to **ON**.
+   - **New world:** Create World → Game tab → set **Enchantaholic Mode** to **ON**.
    - **Existing world:** `/gamerule enchantaholic:enchantaholic true`. The rule is `false` by default.
 
 ### Bedrock Edition

@@ -81,7 +81,11 @@ For a new Fabric mod repository. For other project types, change step 5 by follo
 
 Optional but recommended: copy `.github/release.yml` (release-notes categories), `.github/labeler.yml` and
 `.github/workflows/labeler.yml` (branch prefix → label) from this repository. The generated release notes, and with
-them the CurseForge changelog, are then grouped into features, fixes and so on.
+them the CurseForge changelog, are then grouped into features, fixes and so on. In the copied `.github/labeler.yml`,
+delete or adapt the `fabric` / `bedrock` path rules at the end; they are specific to Enchantaholic's layout.
+
+Before the first tag, commit `release.yml` to the default branch: a tag push runs the workflow file of the tagged
+commit, and the "Run workflow" button only appears for workflows on the default branch.
 
 ## 3. Build contract
 
@@ -362,6 +366,13 @@ in the `version` job, before anything is built or published.
 Other repositories can call these workflows without any setup while the hosting repository is public. If the host is
 **private**, open its Settings → Actions → General → Access and choose "Accessible from repositories owned by the user
 'nezo32'". Only repositories of the same owner can then call it.
+
+The **calling** repository's Actions policy applies to everything the called workflows use. With the default "Allow
+all actions and reusable workflows" nothing needs changing. If the caller restricts actions (Settings → Actions →
+General → Actions permissions), allow `nezo32/enchantaholic/.github/workflows/*` plus the actions used inside:
+`actions/checkout`, `actions/setup-java`, `actions/setup-node`, `gradle/actions/setup-gradle`,
+`actions/upload-artifact`, `actions/download-artifact` and `softprops/action-gh-release`. A policy error shows up as
+a startup failure of the whole run, before any job starts.
 
 ## 11. Moving to a dedicated repository
 

@@ -13,8 +13,9 @@ A release is a tag. Pushing `vX.Y.Z` on a commit of `main` starts `.github/workf
 4. `curseforge-mod`: uploads the jar with the sources jar as a child file, using the release notes as the changelog.
    `curseforge-addon` does the same for the add-on if a Bedrock project is configured.
 
-Never edit `mod_version` in `fabric/gradle.properties` or the versions in `bedrock/**/manifest.json` by hand. They are
-placeholders (`0.0.0-dev` / `0.0.0`); the tag sets the real version.
+Never edit `mod_version` in `fabric/gradle.properties`, `version` in `bedrock/package.json` or the versions in
+`bedrock/pack/manifest.json` by hand. They are development placeholders (`0.0.0`; the manifest versions are overwritten
+at build time); the tag sets the real version.
 
 ## Cutting a release
 
@@ -42,7 +43,8 @@ Use a SemVer pre-release suffix:
 | `v1.3.0` | latest release | release |
 
 Pre-releases are never marked "latest" on GitHub. Bedrock manifests get `[1, 3, 0]` for all of them, since Bedrock
-versions have no pre-release part.
+versions have no pre-release part. Bedrock identifies a pack by UUID and version, so testers who imported
+`1.3.0-rc.1` must remove that pack before importing `1.3.0` (or the import is reported as a duplicate).
 
 ## Hotfix
 

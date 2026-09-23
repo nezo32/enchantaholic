@@ -5,13 +5,13 @@ Alt: *Sharpness VI is just the beginning.*
 
 ## CurseForge description
 
-> **Enchantaholic** turns every swing into a lottery. Each block you break adds a **random enchantment to a random item in your inventory**, and levels **keep stacking past vanilla caps**: Sharpness VI, Efficiency XII, Protection XXX. Dig a tunnel and you come out with a god-tier sword and a pair of boots you can't explain. The mode is a toggle on the world-creation screen and a game rule (`/gamerule enchantaholic:enchantaholic true`), so you can switch it on in any world. There's a **Fabric mod for Java 26.2–26.3** and a **Bedrock behavior pack**.
+> **Enchantaholic** turns every swing into a lottery. Each block you break adds a **random enchantment to a random item in your inventory**, and levels **keep stacking past vanilla caps**: Sharpness VI, Efficiency XII, Protection XXX. Dig a tunnel and you come out with a god-tier sword and a pair of boots you can't explain. The mode is a toggle on the world-creation screen and a game rule (`/gamerule enchantaholic:enchantaholic true`), so you can switch it on in any world. There's a **Fabric mod for Java 26.2–26.3** and a **Bedrock behavior pack** (26.50+; activate the pack, toggle with `/enchantaholic:toggle`).
 
 ## Features
 - ⛏️ **Every block counts:** each break enchants a random item in your inventory.
-- 📈 **No level caps:** levels stack beyond vanilla limits (VI, VII … up to CCLV).
-- 🎲 **Fully random:** any item, any enchantment. The chaos is the point.
-- ⚙️ **Toggle anywhere:** a checkbox at world creation plus a game rule for existing worlds.
+- 📈 **Past the caps:** levels stack beyond vanilla limits (VI, VII … up to CCLV on Java; on Bedrock the true level is tracked in lore, with real bonuses for Sharpness, Smite, Bane, Power, the Protection family and Efficiency).
+- 🎲 **Fully random:** any item, any enchantment (Bedrock only rolls pairs the game accepts). The chaos is the point.
+- ⚙️ **Toggle anywhere:** an ON/OFF button at world creation plus a game rule for existing worlds (Java); an operator command on Bedrock.
 - 💬 **Clear feedback:** an actionbar message shows what just got enchanted.
 - 🔢 **Readable numerals:** tooltips show proper Roman numerals up to 255, not `enchantment.level.11`.
 - 🧱 **Java + Bedrock:** a Fabric mod (26.2–26.3) and a Bedrock behavior pack.
@@ -38,8 +38,8 @@ In-game text: use `§d` (light purple) for the ✦ and the item name, and `§b` 
 ## Player-facing strings (en_us)
 | Key | Text |
 |---|---|
-| `gamerule.enchantaholic:enchantaholic` | Enchantaholic Mode |
-| `gamerule.enchantaholic:enchantaholic.description` | Every block you break enchants a random item in your inventory. Levels stack past vanilla limits. |
+| `gamerule.enchantaholic.enchantaholic` | Enchantaholic Mode |
+| `gamerule.enchantaholic.enchantaholic.description` | Every block you break enchants a random item in your inventory. Levels stack past vanilla limits. |
 | `enchantaholic.createWorld.toggle` | Enchantaholic Mode |
 | `enchantaholic.createWorld.toggle.tooltip` | Every block you break adds a random enchantment to a random item in your inventory. Levels keep stacking past the normal caps (Sharpness VI, VII, and beyond). You can change this later with /gamerule enchantaholic:enchantaholic. |
 | `enchantaholic.message.enchanted` | `✦ %1$s → %2$s` |
@@ -57,4 +57,4 @@ Vanilla only translates `enchantment.level.1` through `enchantment.level.10`. Fr
 - `texts/en_US.lang`: `pack.name` / `pack.description`. In `manifest.json`, set `"name": "pack.name"` and `"description": "pack.description"`.
 - `texts/languages.json`: `["en_US"]`
 - `pack_icon.png` (256×256, opaque) goes in the pack root.
-- Bedrock can't add custom game rules. Use a script-API toggle instead, such as a `/scriptevent enchantaholic:toggle` or a world dynamic property, and reuse the "Enchantaholic Mode" name in its message.
+- Bedrock can't add custom game rules. The pack uses a Script API custom command, `/enchantaholic:toggle [on|off|status]` (operators, works with cheats off), stores the state in the world dynamic property `enchantaholic:enabled`, and reuses the "Enchantaholic Mode" name in its messages.

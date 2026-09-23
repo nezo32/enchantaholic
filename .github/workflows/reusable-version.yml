@@ -1,6 +1,6 @@
-# Derives release metadata from a SemVer tag (v1.2.3, v1.2.3-beta.1, v1.2.3-rc.1). Build metadata (+...) is
-# rejected: it would leak into file names and CurseForge display names inconsistently.
-# and, optionally, rejects tags whose commit is not on the release branch.
+# Derives release metadata from a SemVer tag (v1.2.3, v1.2.3-beta.1, v1.2.3-rc.1) and, optionally, rejects tags
+# whose commit is not on the release branch. Build metadata (+...) is rejected: it would leak into file names and
+# CurseForge display names inconsistently.
 name: reusable / version
 
 on:

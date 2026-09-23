@@ -1,5 +1,5 @@
 # Feature flow: <type>/<name> branch -> PR -> main (squash). Runs on every PR to main and on main.
-# Required status checks on main: branch-name, actionlint, scripts, mod / build, addon / build.
+# Required status checks on main: branch-name, actionlint, scripts, mod / build, mod-26_2 / build, addon / build.
 name: CI
 
 on:
@@ -25,7 +25,7 @@ jobs:
       - env:
           BRANCH: ${{ github.head_ref }}
         run: |
-          if [[ ! "$BRANCH" =~ ^(feature|feat|fix|hotfix|chore|docs|refactor|ci|build|test|perf|release)/[a-z0-9._-]+$|^(dependabot|renovate)/ ]]; then
+          if [[ ! "$BRANCH" =~ ^(feature|feat|fix|hotfix|chore|docs|refactor|ci|build|test|perf|release)/[a-z0-9._-]+$|^(dependabot|renovate|claude)/ ]]; then
             echo "::error::Branch '$BRANCH' should be <type>/<short-name>, type in feature|feat|fix|hotfix|chore|docs|refactor|ci|build|test|perf|release"
             exit 1
           fi

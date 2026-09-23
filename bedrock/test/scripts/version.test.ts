@@ -3,7 +3,7 @@ import { fileSafeVersion, resolveVersion } from "../../scripts/lib/version.mjs";
 
 describe("resolveVersion", () => {
   it("defaults to package.json version", () => {
-    expect(resolveVersion({}, "1.0.0")).toEqual({ full: "1.0.0", triple: [1, 0, 0], fileSafe: "1.0.0" });
+    expect(resolveVersion({}, "0.0.0")).toEqual({ full: "0.0.0", triple: [0, 0, 0], fileSafe: "0.0.0" });
     expect(resolveVersion({ VERSION: "   " }, "2.3.4").full).toBe("2.3.4");
   });
 

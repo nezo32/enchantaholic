@@ -96,7 +96,9 @@ export function writeExtras(
   );
   if (!item.isStackable) {
     try {
-      item.setDynamicProperty(PROP_LEVELS, encodeLevels(pruned));
+      const encoded = encodeLevels(pruned);
+      // Skip the write when nothing changes (the common case: items that never went past max).
+      if (item.getDynamicProperty(PROP_LEVELS) !== encoded) item.setDynamicProperty(PROP_LEVELS, encoded);
     } catch (err) {
       warnOnce("dynprop", err);
     }
@@ -112,14 +114,28 @@ export function writeExtras(
   }
 }
 
-/** Lazy ItemProbe for the selection algorithm. */
+/**
+ * Lazy ItemProbe for the selection algorithm. The enchantable component and the stored extras are
+ * only looked up for the slots the selection actually visits (usually 1–3 of up to 41).
+ */
 export function makeProbe(item: ItemStack, reg: EnchantRegistry): ItemProbe {
-  const ench = getEnchantable(item);
+  let resolved = false;
+  let cachedEnch: ItemEnchantableComponent | undefined;
+  const enchOf = (): ItemEnchantableComponent | undefined => {
+    if (!resolved) {
+      cachedEnch = getEnchantable(item);
+      resolved = true;
+    }
+    return cachedEnch;
+  };
   let extras: Map<string, number> | undefined;
   return {
     typeId: item.typeId,
-    enchantable: ench !== undefined,
+    get enchantable(): boolean {
+      return enchOf() !== undefined;
+    },
     trueLevel(enchantId: string): number {
+      const ench = enchOf();
       if (!ench) return 0;
       const id = normalizeId(enchantId);
       const maxLevel = reg.maxLevel(id);
@@ -130,6 +146,7 @@ export function makeProbe(item: ItemStack, reg: EnchantRegistry): ItemProbe {
       return resolveTrueLevel(vanilla, maxLevel, extras.get(id));
     },
     canAddFresh(enchantId: string): boolean {
+      const ench = enchOf();
       if (!ench) return false;
       const type = reg.type(enchantId);
       if (!type) return false;

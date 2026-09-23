@@ -166,6 +166,32 @@ describe("item-levels", () => {
     expect(probe.canAddFresh("minecraft:unbreaking")).toBe(false);
   });
 
+  it("makeProbe looks up the enchantable component only when the slot is visited, once", () => {
+    const item = makeItem("minecraft:diamond_sword", { enchantable: { compatible: "all" } });
+    const spy = vi.spyOn(item, "getComponent");
+    const probe = makeProbe(asItem(item), getRegistry());
+    expect(spy).not.toHaveBeenCalled();
+    expect(probe.enchantable).toBe(true);
+    probe.trueLevel("minecraft:sharpness");
+    probe.canAddFresh("minecraft:sharpness");
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("writeExtras does not write the dynamic property when its value is unchanged", () => {
+    const plain = makeItem("minecraft:diamond_sword", { enchantable: { compatible: "all" }, levels: { sharpness: 3 } });
+    const plainSpy = vi.spyOn(plain, "setDynamicProperty");
+    writeExtras(asItem(plain), enchOf(plain), new Map(), getRegistry());
+    expect(plainSpy).not.toHaveBeenCalled();
+
+    const over = overcapped("minecraft:diamond_sword", "minecraft:sharpness", 5, 7);
+    const overSpy = vi.spyOn(over, "setDynamicProperty");
+    writeExtras(asItem(over), enchOf(over), new Map([["minecraft:sharpness", 7]]), getRegistry());
+    expect(overSpy).not.toHaveBeenCalled();
+    writeExtras(asItem(over), enchOf(over), new Map([["minecraft:sharpness", 8]]), getRegistry());
+    expect(overSpy).toHaveBeenCalledTimes(1);
+    expect(over.props.get(PROP_LEVELS)).toBe(JSON.stringify({ "minecraft:sharpness": 8 }));
+  });
+
   it("makeProbe on a non-enchantable item", () => {
     const probe = makeProbe(asItem(makeItem("minecraft:dirt", { amount: 5 })), getRegistry());
     expect(probe.enchantable).toBe(false);

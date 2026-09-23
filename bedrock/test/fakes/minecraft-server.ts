@@ -176,9 +176,18 @@ export class FakeSignal<T> {
   }
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/** Every real signal name is a typed property (not index access), so tests need no `!`. */
+type RealSignalNames =
+  | keyof mc.WorldAfterEvents
+  | keyof mc.WorldBeforeEvents
+  | keyof mc.SystemAfterEvents
+  | keyof mc.SystemBeforeEvents;
+type KnownSignals = { [K in RealSignalNames]: FakeSignal<any> };
 /** Lazily creates a FakeSignal for any property name (world.afterEvents.anything). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SignalBag = Record<string, FakeSignal<any>> & { _all(): Map<string, FakeSignal<unknown>> };
+type SignalBag = KnownSignals &
+  Record<string, FakeSignal<any>> & { _all(): Map<string, FakeSignal<unknown>> };
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 function signalBag(): SignalBag {
   const map = new Map<string, FakeSignal<unknown>>();

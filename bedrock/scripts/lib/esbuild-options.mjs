@@ -2,6 +2,7 @@
  * Shared esbuild options for the script bundle (used by build.mjs and the bundle test).
  * @param {{ full: string }} version
  * @param {boolean} debug
+ * @returns {import("esbuild").BuildOptions}
  */
 export function esbuildOptions(version, debug) {
   return {

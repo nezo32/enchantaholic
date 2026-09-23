@@ -113,18 +113,21 @@ public class EnchantaholicEdgeGameTests {
 		helper.succeed();
 	}
 
-	/** A Fabric FakePlayer (e.g. a machine mod) breaking a block must not crash; it is treated as a survival player. */
+	/** A Fabric FakePlayer (e.g. a machine mod) breaking a block never enchants anything and does not crash. */
 	@GameTest
 	public void fakePlayerIsSafe(GameTestHelper helper) {
 		setRule(helper, true);
 		FakePlayer fake = FakePlayer.get(helper.getLevel(), new GameProfile(UUID.randomUUID(), "enchantaholic-fake"));
 		fake.getInventory().clearContent();
 		fake.getInventory().setItem(0, new ItemStack(Items.STICK));
+		helper.assertTrue(!BlockBreakHandler.shouldTrigger(helper.getLevel(), fake, Blocks.STONE.defaultBlockState()),
+				"fake player must not trigger");
 		breakBlock(helper, fake, Blocks.STONE);
-		helper.assertValueEqual(totalLevels(fake.getInventory().getItem(0)), 1, "fake player stick");
+		helper.assertBlockNotPresent(Blocks.STONE, BREAK_POS);
+		helper.assertValueEqual(totalLevels(fake.getInventory().getItem(0)), 0, "fake player stick after a real break");
 		// direct call with a null block entity
 		BlockBreakHandler.onAfterBreak(helper.getLevel(), fake, helper.absolutePos(BREAK_POS), Blocks.STONE.defaultBlockState(), null);
-		helper.assertValueEqual(totalLevels(fake.getInventory().getItem(0)), 2, "direct call, null block entity");
+		helper.assertValueEqual(totalLevels(fake.getInventory().getItem(0)), 0, "direct call, null block entity");
 		fake.getInventory().clearContent();
 		helper.succeed();
 	}

@@ -74,6 +74,20 @@ tasks.withType(JavaCompile).configureEach {
 	it.options.release = 25
 }
 
+// Drop jars of other versions from build/libs so a release build (-Pmod_version=X) without `clean`
+// leaves exactly one mod jar (plus its sources jar) behind.
+def deleteStaleJars = tasks.register('deleteStaleJars', Delete) {
+	def libs = base.libsDirectory
+	def name = project.archives_base_name
+	def current = project.version.toString()
+	delete fileTree(libs) {
+		include "${name}-*.jar"
+		exclude "${name}-${current}.jar", "${name}-${current}-sources.jar"
+	}
+}
+tasks.named('jar') { dependsOn deleteStaleJars }
+tasks.named('sourcesJar') { dependsOn deleteStaleJars }
+
 tasks.named('jar') {
 	def license = rootProject.file('../LICENSE')
 	if (license.exists()) {

@@ -1,4 +1,5 @@
-# Derives release metadata from a SemVer tag (v1.2.3, v1.2.3-beta.1, v1.2.3-rc.1+build.5)
+# Derives release metadata from a SemVer tag (v1.2.3, v1.2.3-beta.1, v1.2.3-rc.1). Build metadata (+...) is
+# rejected: it would leak into file names and CurseForge display names inconsistently.
 # and, optionally, rejects tags whose commit is not on the release branch.
 name: reusable / version
 
@@ -58,9 +59,9 @@ jobs:
             exit 1
           fi
           version="${tag#"$PREFIX"}"
-          re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z.-]+))?(\+[0-9A-Za-z.-]+)?$'
+          re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z.-]+))?$'
           if [[ ! "$version" =~ $re ]]; then
-            echo "::error::Tag '$tag' is not '${PREFIX}MAJOR.MINOR.PATCH[-pre][+build]'"
+            echo "::error::Tag '$tag' is not '${PREFIX}MAJOR.MINOR.PATCH[-prerelease]' (no +build metadata)"
             exit 1
           fi
           pre="${BASH_REMATCH[5]}"
@@ -89,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           # compare BRANCH...TAG: "behind" (tag is an ancestor of the branch) or "identical" = tag is on the branch
-          if ! status="$(gh api "repos/$GITHUB_REPOSITORY/compare/${BRANCH}...${TAG//+/%2B}" --jq .status)"; then
+          if ! status="$(gh api "repos/$GITHUB_REPOSITORY/compare/${BRANCH}...${TAG}" --jq .status)"; then
             echo "::error::Could not compare '$TAG' with '$BRANCH' (does the branch exist?)"
             exit 1
           fi

@@ -67,7 +67,7 @@ jobs:
   #     ref: ${{ needs.version.outputs.tag }}
   #     working-directory: "."
   #     node-version: "24"
-  #     check-command: npm run lint --if-present && npm test --if-present
+  #     check-command: npm run typecheck --if-present && npm run lint --if-present && npm test --if-present
   #     build-command: npm run package
   #     version: ${{ needs.version.outputs.version }}
   #     artifact-name: dist

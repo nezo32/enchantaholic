@@ -59,7 +59,8 @@ jobs:
           prerelease: ${{ inputs.prerelease }}
           draft: ${{ inputs.draft }}
           generate_release_notes: ${{ inputs.generate-notes }}
-          make_latest: ${{ !inputs.prerelease }}
+          # legacy = GitHub picks latest by date + SemVer, so re-running an old tag does not make it "latest"
+          make_latest: ${{ inputs.prerelease && 'false' || 'legacy' }}
           working_directory: dist
           files: ${{ inputs.files }}
           fail_on_unmatched_files: true

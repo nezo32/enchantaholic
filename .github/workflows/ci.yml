@@ -69,7 +69,7 @@ jobs:
     uses: ./.github/workflows/reusable-build-node.yml
     with:
       working-directory: bedrock
-      check-command: npm run lint --if-present && npm test --if-present
+      check-command: npm run typecheck --if-present && npm run lint --if-present && npm test --if-present
       build-command: npm run package
       artifact-name: bedrock-addon-ci
       artifact-files: dist/*.mcaddon

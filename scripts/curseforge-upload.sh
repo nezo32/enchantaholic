@@ -8,10 +8,11 @@
 # Environment:
 #   CF_TOKEN            (required) API token (Authors portal -> API tokens). Sent as X-Api-Token.
 #   CF_PROJECT_ID       (required) numeric project id.
-#   CF_API_BASE         default https://minecraft.curseforge.com  (per-game host; Bedrock: see report)
+#   CF_API_BASE         default https://minecraft.curseforge.com  (per-game host; Bedrock: https://minecraft-bedrock.curseforge.com)
 #   CF_GAME_VERSIONS    names, comma/newline separated, e.g. "26.2,26.3,Fabric,Java 25,Client,Server"
 #   CF_TYPE_PREFIXES    comma list of version-type slug prefixes to search in.
-#                       default "minecraft,modloader,java,environment"; set to "" to search all types.
+#                       default "minecraft,modloader,java,environment"; set to "" to search all types
+#                       (required for Bedrock, whose /game/version-types returns no list; types are then not fetched).
 #   CF_RELEASE_TYPE     release | beta | alpha                      (default release)
 #   CF_DISPLAY_NAME     display name of the primary file           (default: file name)
 #   CF_CHANGELOG        changelog text (or CF_CHANGELOG_FILE=path)
@@ -19,17 +20,22 @@
 #   CF_RELATIONS        "slug:type,slug:type"  type in requiredDependency|optionalDependency|
 #                       embeddedLibrary|tool|incompatible          e.g. "fabric-api:requiredDependency"
 #   CF_DRY_RUN          "true" = resolve ids and print metadata, do not upload
+#   CF_RETRY_DELAY      seconds between curl retries (default 5; uploads wait twice as long)
 #   CF_VERSIONS_JSON / CF_TYPES_JSON  optional local JSON files instead of calling the API (testing)
 # Outputs (when $GITHUB_OUTPUT is set): file-id, file-ids (comma list)
 set -euo pipefail
 
 die() { echo "::error::$*" >&2; exit 1; }
 
+for c in curl jq; do command -v "$c" >/dev/null 2>&1 || die "$c is required but not installed"; done
 [[ $# -ge 1 ]] || die "usage: $0 <primary-file> [additional-file ...]"
 : "${CF_PROJECT_ID:?CF_PROJECT_ID is required}"
 [[ "$CF_PROJECT_ID" =~ ^[0-9]+$ ]] || die "CF_PROJECT_ID must be numeric (got '$CF_PROJECT_ID')"
 if [[ "${CF_DRY_RUN:-false}" != "true" ]]; then : "${CF_TOKEN:?CF_TOKEN is required}"; fi
 for f in "$@"; do [[ -f "$f" ]] || die "file not found: $f"; done
+[[ "${CF_GAME_VERSIONS:-}" =~ [^[:space:],] ]] || die "no game versions given (CF_GAME_VERSIONS)"
+RETRY_DELAY="${CF_RETRY_DELAY:-5}"
+[[ "$RETRY_DELAY" =~ ^[0-9]+$ ]] || die "CF_RETRY_DELAY must be a number of seconds"
 
 API="${CF_API_BASE:-https://minecraft.curseforge.com}"; API="${API%/}/api"
 RELEASE_TYPE="${CF_RELEASE_TYPE:-release}"
@@ -37,13 +43,20 @@ case "$RELEASE_TYPE" in release|beta|alpha) ;; *) die "CF_RELEASE_TYPE must be r
 TYPE_PREFIXES="${CF_TYPE_PREFIXES-minecraft,modloader,java,environment}"
 
 cf_get() { # $1 = path
-  curl -fsS --retry 4 --retry-all-errors --retry-delay 5 \
+  curl -fsS --retry 4 --retry-all-errors --retry-delay "$RETRY_DELAY" \
     -H "X-Api-Token: ${CF_TOKEN:-}" "$API$1"
 }
 
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 if [[ -n "${CF_VERSIONS_JSON:-}" ]]; then cp "$CF_VERSIONS_JSON" "$tmp/versions.json"; else cf_get /game/versions > "$tmp/versions.json"; fi
-if [[ -n "${CF_TYPES_JSON:-}" ]];    then cp "$CF_TYPES_JSON"    "$tmp/types.json";    else cf_get /game/version-types > "$tmp/types.json"; fi
+# version types are only needed to filter by slug prefix; some hosts (e.g. Bedrock) return no usable list
+if [[ -z "$TYPE_PREFIXES" ]]; then echo '[]' > "$tmp/types.json"
+elif [[ -n "${CF_TYPES_JSON:-}" ]]; then cp "$CF_TYPES_JSON" "$tmp/types.json"
+else cf_get /game/version-types > "$tmp/types.json"; fi
+jq -e 'type == "array"' "$tmp/versions.json" >/dev/null 2>&1 || die "GET /game/versions did not return a JSON array (check CF_API_BASE / CF_TOKEN)"
+if [[ -n "$TYPE_PREFIXES" ]] && ! jq -e 'type == "array" and length > 0' "$tmp/types.json" >/dev/null 2>&1; then
+  die "GET /game/version-types returned no version types; set CF_TYPE_PREFIXES=\"\" to search all types"
+fi
 
 # --- resolve game version names -> ids -------------------------------------------------
 ids_json='[]'
@@ -52,9 +65,10 @@ while IFS= read -r name; do
   [[ -z "$name" ]] && continue
   matches="$(jq -c --arg name "$name" --arg prefixes "$TYPE_PREFIXES" --slurpfile types "$tmp/types.json" '
       ($prefixes | split(",") | map(select(length > 0))) as $p
-    | ($types[0] | map(select(($p | length) == 0 or (.slug as $s | any($p[]; . as $x | $s | startswith($x))))) | map(.id)) as $allowed
+    | (if ($p | length) == 0 then null
+       else $types[0] | map(select(.slug as $s | any($p[]; . as $x | $s | startswith($x)))) | map(.id) end) as $allowed
     | [ .[] | select((.name | ascii_downcase) == ($name | ascii_downcase))
-            | select(.gameVersionTypeID as $t | $allowed | index($t)) ]
+            | select($allowed == null or (.gameVersionTypeID as $t | $allowed | index($t) != null)) ]
     | map({id, name, gameVersionTypeID})' "$tmp/versions.json")"
   count="$(jq 'length' <<<"$matches")"
   if [[ "$count" -eq 0 ]]; then
@@ -93,7 +107,7 @@ upload() { # $1 = file, $2 = metadata json
     jq . <<<"$2" >&2; echo 0; return
   fi
   local resp code
-  resp="$(curl -sS --retry 3 --retry-delay 10 -w '\n%{http_code}' \
+  resp="$(curl -sS --retry 3 --retry-delay "$((RETRY_DELAY * 2))" -w '\n%{http_code}' \
     -H "X-Api-Token: $CF_TOKEN" \
     -F "metadata=$2;type=application/json" \
     -F "file=@$1" \

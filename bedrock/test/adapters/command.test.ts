@@ -55,6 +55,17 @@ describe("command", () => {
     expect(isEnabled()).toBe(true);
   });
 
+  it("two toggles in the same tick cancel out (pending target is flipped, not the stale state)", () => {
+    const reg = registered();
+    expect((reg.invoke(COMMAND_NAME, {}) as mc.CustomCommandResult).message).toBe("Enchantaholic Mode: §cOFF");
+    expect((reg.invoke(COMMAND_NAME, {}) as mc.CustomCommandResult).message).toBe("Enchantaholic Mode: §aON");
+    expect((reg.invoke(COMMAND_NAME, {}, "status") as mc.CustomCommandResult).message).toBe("Enchantaholic Mode: §aON");
+    system.flushRuns();
+    expect(isEnabled()).toBe(true);
+    expect(world.getDynamicProperty(PROP_ENABLED)).toBe(true);
+    expect(world.messages).toEqual(["Enchantaholic Mode: §cOFF", "Enchantaholic Mode: §aON"]);
+  });
+
   it("on/off are idempotent", () => {
     handleToggle("off");
     handleToggle("off");

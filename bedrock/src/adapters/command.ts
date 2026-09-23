@@ -14,6 +14,14 @@ import { isEnabled, setEnabled } from "./state";
 
 export type ToggleArg = "on" | "off" | "status";
 
+/** Target state queued by a toggle but not yet persisted (world writes wait for system.run). */
+let pending: boolean | undefined;
+
+/** Test helper. */
+export function _resetPendingToggle(): void {
+  pending = undefined;
+}
+
 function toArg(raw: unknown): ToggleArg | undefined {
   return raw === "on" || raw === "off" || raw === "status" ? raw : undefined;
 }
@@ -38,10 +46,13 @@ export function registerCommands(registry: CustomCommandRegistry): void {
  * No argument flips the current state.
  */
 export function handleToggle(arg: ToggleArg | undefined): CustomCommandResult {
-  if (arg === "status") return { status: CustomCommandStatus.Success, message: statusText(isEnabled()) };
-  const target = arg ? arg === "on" : !isEnabled();
+  if (arg === "status") return { status: CustomCommandStatus.Success, message: statusText(pending ?? isEnabled()) };
+  // Two toggles in the same tick must cancel out, so flip the not-yet-persisted target if any.
+  const target = arg ? arg === "on" : !(pending ?? isEnabled());
+  pending = target;
   system.run(
     safe("toggle", () => {
+      if (pending === target) pending = undefined;
       setEnabled(target);
       world.sendMessage(statusText(target));
     }),

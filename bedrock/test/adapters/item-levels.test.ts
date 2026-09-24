@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  getCustomLevel,
   getEnchantable,
   makeProbe,
+  readCustoms,
+  writeCustoms,
   overcapById,
   overcapLevel,
   readExtras,
@@ -9,7 +12,9 @@ import {
   writeExtras,
 } from "../../src/adapters/item-levels";
 import { getRegistry } from "../../src/adapters/registry";
-import { PROP_LEVELS } from "../../src/core/config";
+import { PROP_CUSTOM_LEVELS, PROP_LEVELS } from "../../src/core/config";
+import { CUSTOM } from "../../src/core/custom/roster";
+import { encodeLoreLine } from "../../src/core/lore";
 import { asItem, fakeEnchantable, makeItem } from "../fakes/builders";
 import type { FakeItemStack } from "../fakes/minecraft-server";
 import { levelsProp, loreLine, overcapped, resetAll } from "./helpers";
@@ -199,3 +204,109 @@ describe("item-levels", () => {
     expect(probe.canAddFresh("minecraft:sharpness")).toBe(false);
   });
 });
+
+describe("item-levels: custom enchantments", () => {
+  beforeEach(() => void resetAll());
+
+  const magnetLine = (lvl: number) => encodeLoreLine("Magnet", lvl, "9");
+  const hiccupsLine = (lvl: number) => encodeLoreLine("Curse of Hiccups", lvl, "c");
+
+  it("getCustomLevel / readCustoms on a non-stackable item (dynprop wins over lore)", () => {
+    const item = makeItem("minecraft:diamond_pickaxe", { customs: { [CUSTOM.vein_miner]: 4, [CUSTOM.hiccups]: 2 } });
+    expect(item.props.get(PROP_CUSTOM_LEVELS)).toBe(JSON.stringify({ "enchantaholic:hiccups": 2, "enchantaholic:vein_miner": 4 }));
+    expect(getCustomLevel(asItem(item), CUSTOM.vein_miner)).toBe(4);
+    expect(getCustomLevel(asItem(item), CUSTOM.magnet)).toBe(0);
+    item.props.set(PROP_CUSTOM_LEVELS, JSON.stringify({ "enchantaholic:vein_miner": 9 }));
+    expect(readCustoms(asItem(item))).toEqual(
+      new Map([
+        [CUSTOM.vein_miner, 9],
+        [CUSTOM.hiccups, 2],
+      ]),
+    );
+  });
+
+  it("getCustomLevel / readCustoms on a stackable item (lore only, no dynprop access)", () => {
+    const item = makeItem("minecraft:dirt", { amount: 10, customs: { [CUSTOM.chicken_rain]: 3 } });
+    expect(item.lore).toEqual([encodeLoreLine("Chicken Rain", 3, "9")]);
+    const prop = vi.spyOn(item, "getDynamicProperty");
+    expect(getCustomLevel(asItem(item), CUSTOM.chicken_rain)).toBe(3);
+    expect(prop).not.toHaveBeenCalled();
+  });
+
+  it("getCustomLevel is 0 for undefined items and never throws", () => {
+    expect(getCustomLevel(undefined, CUSTOM.magnet)).toBe(0);
+    const item = makeItem("minecraft:diamond_sword", { customs: { [CUSTOM.magnet]: 2 } });
+    vi.spyOn(item, "getLore").mockImplementation(() => {
+      throw new Error("invalid");
+    });
+    vi.spyOn(item, "getDynamicProperty").mockImplementation(() => {
+      throw new Error("invalid");
+    });
+    expect(getCustomLevel(asItem(item), CUSTOM.magnet)).toBe(0);
+  });
+
+  it("readExtras never returns custom levels", () => {
+    const item = makeItem("minecraft:diamond_sword", {
+      enchantable: { compatible: "all" },
+      levels: { sharpness: 5 },
+      lore: [loreLine("minecraft:sharpness", 7), magnetLine(3)],
+      props: { [PROP_LEVELS]: JSON.stringify({ "minecraft:sharpness": 7, "enchantaholic:magnet": 5 }) },
+    });
+    expect(readExtras(asItem(item))).toEqual(new Map([["minecraft:sharpness", 7]]));
+  });
+
+  it("writeCustoms writes dynprop + lore and keeps vanilla-overcap and user lines", () => {
+    const item = overcapped("minecraft:diamond_sword", "minecraft:sharpness", 5, 7, { lore: [] });
+    item.lore = ["§oMy blade", loreLine("minecraft:sharpness", 7)];
+    writeCustoms(
+      asItem(item),
+      new Map([
+        [CUSTOM.magnet, 2],
+        [CUSTOM.hiccups, 1],
+      ]),
+    );
+    expect(item.props.get(PROP_CUSTOM_LEVELS)).toBe(JSON.stringify({ "enchantaholic:hiccups": 1, "enchantaholic:magnet": 2 }));
+    expect(item.props.get(PROP_LEVELS)).toBe(JSON.stringify({ "minecraft:sharpness": 7 }));
+    expect(item.lore).toEqual(["§oMy blade", hiccupsLine(1), magnetLine(2), loreLine("minecraft:sharpness", 7)]);
+  });
+
+  it("writeCustoms on a stackable writes lore only", () => {
+    const item = makeItem("minecraft:stick", { amount: 3 });
+    writeCustoms(asItem(item), new Map([[CUSTOM.barrage, 5]]));
+    expect(item.lore).toEqual([encodeLoreLine("Barrage", 5, "9")]);
+    expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("writeExtras keeps custom lore (regression: custom lines were pruned as unknown ids)", () => {
+    const item = makeItem("minecraft:diamond_sword", {
+      enchantable: { compatible: "all" },
+      levels: { sharpness: 5 },
+      customs: { [CUSTOM.yeet]: 4 },
+    });
+    writeExtras(asItem(item), enchOf(item), new Map([["minecraft:sharpness", 6]]), getRegistry());
+    expect(item.lore).toEqual([loreLine("minecraft:sharpness", 6), encodeLoreLine("Yeet", 4, "9")]);
+    expect(getCustomLevel(asItem(item), CUSTOM.yeet)).toBe(4);
+    // Even a lore-only custom (no dynprop) survives, and extras passed in with a custom id are ignored.
+    const stack = makeItem("minecraft:book", { amount: 2, enchantable: { compatible: "all" }, levels: { sharpness: 5 }, customs: { [CUSTOM.kaboom]: 2 } });
+    writeExtras(asItem(stack), enchOf(stack), new Map([["enchantaholic:kaboom", 99]]), getRegistry());
+    expect(stack.lore).toEqual([encodeLoreLine("Kaboom", 2, "9")]);
+  });
+
+  it("writeCustoms skips the dynprop write when unchanged", () => {
+    const item = makeItem("minecraft:diamond_sword", { customs: { [CUSTOM.magnet]: 2 } });
+    const spy = vi.spyOn(item, "setDynamicProperty");
+    const lore = vi.spyOn(item, "setLore");
+    writeCustoms(asItem(item), new Map([[CUSTOM.magnet, 2]]));
+    expect(spy).not.toHaveBeenCalled();
+    expect(lore).not.toHaveBeenCalled();
+    writeCustoms(asItem(item), new Map([[CUSTOM.magnet, 3]]));
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("makeProbe.customLevel delegates to the stored custom levels", () => {
+    const probe = makeProbe(asItem(makeItem("minecraft:dirt", { customs: { [CUSTOM.midas_touch]: 6 } })), getRegistry());
+    expect(probe.customLevel?.(CUSTOM.midas_touch)).toBe(6);
+    expect(probe.customLevel?.(CUSTOM.magnet)).toBe(0);
+  });
+});
+

@@ -4,8 +4,10 @@ import {
   onPlayerBreakBlock,
   registerEnchanter,
 } from "../../src/adapters/enchanter";
-import { setEnabled } from "../../src/adapters/state";
-import { MAX_APPLY_ATTEMPTS, PROP_LEVELS } from "../../src/core/config";
+import { setCustomEnabled, setEnabled } from "../../src/adapters/state";
+import { MAX_APPLY_ATTEMPTS, PROP_CUSTOM_LEVELS, PROP_LEVELS } from "../../src/core/config";
+import { CUSTOM, isCustomId } from "../../src/core/custom/roster";
+import { encodeLoreLine } from "../../src/core/lore";
 import { mulberry32 } from "../../src/core/rng";
 import {
   asPlayer,
@@ -269,3 +271,104 @@ describe("enchantRandomItem", () => {
     expect(p.onScreenDisplay.actionBars).toHaveLength(0);
   });
 });
+
+describe("enchanter with custom enchantments", () => {
+  beforeEach(() => void resetAll());
+
+  it("customs OFF: dirt-only inventories stay a silent no-op and no custom is ever rolled", () => {
+    const p = makePlayer({ inv: { 0: dirt(), 1: sword() } });
+    const rng = mulberry32(5);
+    for (let i = 0; i < 100; i++) expect(isCustomId(enchantRandomItem(asPlayer(p), rng)!.enchant.id)).toBe(false);
+    const d = makePlayer({ inv: { 0: dirt() } });
+    expect(enchantRandomItem(asPlayer(d), rng)).toBeUndefined();
+    expect(p.container.peek(0)!.lore).toEqual([]);
+  });
+
+  it("customs ON: dirt gets a custom lore line, and a repeat roll of the same enchant gives +1", () => {
+    setCustomEnabled(true);
+    const p = makePlayer({ inv: { 0: dirt(10) } });
+    const r = enchantRandomItem(asPlayer(p), mulberry32(3));
+    expect(r).toBeDefined();
+    expect(isCustomId(r!.enchant.id)).toBe(true);
+    expect(r!.level).toBe(1);
+    const stored = p.container.peek(0)!;
+    expect(stored.amount).toBe(10);
+    expect(stored.props.size).toBe(0); // stackable: lore only
+    expect(stored.lore).toHaveLength(1);
+    expect(stored.lore[0]).toMatch(/^§e§h§r§[9c].+ I$/);
+    // Roll until the same enchant comes again: it must be level II.
+    const first = r!.enchant.id;
+    const rng = mulberry32(11);
+    for (let i = 0; i < 200; i++) {
+      const next = enchantRandomItem(asPlayer(p), rng)!;
+      if (next.enchant.id === first) {
+        expect(next.level).toBe(2);
+        return;
+      }
+    }
+    throw new Error("the same custom never came again");
+  });
+
+  it("customs ON: a sword can receive a custom, stored in the dynprop and the lore", () => {
+    setCustomEnabled(true);
+    for (let seed = 1; seed < 200; seed++) {
+      resetAll();
+      setCustomEnabled(true);
+      const p = makePlayer({ inv: { 0: onlySharp() } });
+      const r = enchantRandomItem(asPlayer(p), mulberry32(seed))!;
+      if (!isCustomId(r.enchant.id)) continue;
+      const stored = p.container.peek(0)!;
+      expect(stored.enchantable!.levels.size).toBe(0);
+      expect(stored.props.get(PROP_CUSTOM_LEVELS)).toBe(JSON.stringify({ [r.enchant.id]: 1 }));
+      expect(stored.lore).toHaveLength(1);
+      return;
+    }
+    throw new Error("no seed gave a custom");
+  });
+
+  it("customs ON: a custom roll keeps vanilla-overcap lore, and a vanilla overcap keeps custom lore", () => {
+    setCustomEnabled(true);
+    const item = onlySharp({ sharpness: 5 }, { customs: { [CUSTOM.yeet]: 2 } });
+    const p = makePlayer({ inv: { 0: item } });
+    const rng = mulberry32(8);
+    for (let i = 0; i < 60; i++) enchantRandomItem(asPlayer(p), rng);
+    const stored = p.container.peek(0)!;
+    const lore = stored.lore;
+    expect(lore.some((l) => l.includes("Sharpness"))).toBe(true);
+    expect(lore.some((l) => l.includes("Yeet"))).toBe(true);
+    expect(lore.every((l) => l.startsWith("§e§h§r"))).toBe(true);
+  });
+
+  it("the actionbar shows Curse of Hiccups in red", () => {
+    for (let seed = 1; seed < 500; seed++) {
+      resetAll();
+      setCustomEnabled(true);
+      const p = makePlayer({ inv: { 0: dirt() } });
+      onPlayerBreakBlock(makeBreakEvent(p, "minecraft:stone"));
+      const bar = actionText(p);
+      if (!bar.includes("Hiccups")) continue;
+      expect(bar).toContain("§cCurse of Hiccups I");
+      expect(p.container.peek(0)!.lore).toEqual([encodeLoreLine("Curse of Hiccups", 1, "c")]);
+      return;
+    }
+    throw new Error("hiccups never rolled");
+  });
+
+  it("customs ON still respects the mode gate", () => {
+    setCustomEnabled(true);
+    setEnabled(false);
+    const p = makePlayer({ inv: { 0: dirt() } });
+    onPlayerBreakBlock(makeBreakEvent(p, "minecraft:stone"));
+    expect(p.container.writes).toHaveLength(0);
+  });
+
+  it("a failed custom write-back is not reported", () => {
+    setCustomEnabled(true);
+    const p = makePlayer({ inv: { 0: dirt() } });
+    vi.spyOn(p.container, "setItem").mockImplementation(() => {
+      throw new Error("slot gone");
+    });
+    expect(enchantRandomItem(asPlayer(p), mulberry32(1))).toBeUndefined();
+  });
+});
+

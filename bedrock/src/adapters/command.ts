@@ -2,6 +2,7 @@
  * Custom commands:
  *   /enchantaholic:toggle [on|off|status]                       game directors; world-wide mode switch
  *   /enchantaholic:notify <sound|message|status> [on|off]       any player; own notification settings
+ *   /enchantaholic:custom <on|off|status>                       game directors; Custom Enchantments switch
  * Callbacks run in restricted execution, so every write is deferred to system.run.
  */
 import {
@@ -17,15 +18,16 @@ import {
 import {
   COMMAND_ENUM,
   COMMAND_NAME,
+  CUSTOM_COMMAND_NAME,
   NOTIFY_COMMAND_NAME,
   NOTIFY_SWITCH_ENUM,
   NOTIFY_TARGET_ENUM,
 } from "../core/config";
-import { statusText } from "../core/message";
+import { CUSTOM_MODE_OFF_HINT, customChangedText, customStatusText, statusText } from "../core/message";
 import { notifySettingText, notifyStatusText } from "../core/notify";
 import { safe } from "./log";
 import { getNotifyPrefs, setNotifyPrefs, type PrefsHolder } from "./notify-prefs";
-import { isEnabled, setEnabled } from "./state";
+import { isCustomEnabled, isEnabled, setCustomEnabled, setEnabled } from "./state";
 
 export type ToggleArg = "on" | "off" | "status";
 export type NotifyTargetArg = "sound" | "message" | "status";
@@ -33,13 +35,17 @@ export type SwitchArg = "on" | "off";
 
 const NOTIFY_USAGE = "Usage: /enchantaholic:notify <sound|message|status> [on|off]";
 const NOT_A_PLAYER = "Only players can change Enchantaholic notifications.";
+const CUSTOM_USAGE = "Usage: /enchantaholic:custom <on|off|status>";
 
 /** Target state queued by a toggle but not yet persisted (world writes wait for system.run). */
 let pending: boolean | undefined;
+/** Same, for the Custom Enchantments setting. */
+let pendingCustom: boolean | undefined;
 
 /** Test helper. */
 export function _resetPendingToggle(): void {
   pending = undefined;
+  pendingCustom = undefined;
 }
 
 function toArg(raw: unknown): ToggleArg | undefined {
@@ -55,7 +61,8 @@ function toSwitch(raw: unknown): SwitchArg | undefined {
 }
 
 /**
- * Registers /enchantaholic:toggle [on|off|status] and /enchantaholic:notify <sound|message|status> [on|off].
+ * Registers /enchantaholic:toggle [on|off|status], /enchantaholic:notify <sound|message|status> [on|off]
+ * and /enchantaholic:custom <on|off|status> (last; it reuses the toggle's enum).
  * Called from system.beforeEvents.startup. The toggle's enum is registered first.
  */
 export function registerCommands(registry: CustomCommandRegistry): void {
@@ -83,6 +90,16 @@ export function registerCommands(registry: CustomCommandRegistry): void {
     },
     (origin, target?: unknown, value?: unknown) => handleNotify(origin, toTarget(target), toSwitch(value)),
   );
+  registry.registerCommand(
+    {
+      name: CUSTOM_COMMAND_NAME,
+      description: "Turn Enchantaholic's custom enchantments on or off for this world (on|off|status)",
+      permissionLevel: CommandPermissionLevel.GameDirectors,
+      cheatsRequired: false,
+      mandatoryParameters: [{ name: COMMAND_ENUM, type: CustomCommandParamType.Enum }],
+    },
+    (_origin, arg?: unknown) => handleCustom(toArg(arg)),
+  );
 }
 
 /**
@@ -102,6 +119,29 @@ export function handleToggle(arg: ToggleArg | undefined): CustomCommandResult {
     }),
   );
   return { status: CustomCommandStatus.Success, message: statusText(target) };
+}
+
+/**
+ * Custom Enchantments switch. Runs in restricted execution: the world write and the broadcast are
+ * deferred to system.run; a status in the same tick reports the queued value.
+ */
+export function handleCustom(arg: ToggleArg | undefined): CustomCommandResult {
+  if (arg === undefined) return { status: CustomCommandStatus.Failure, message: CUSTOM_USAGE };
+  if (arg === "status") {
+    return { status: CustomCommandStatus.Success, message: customStatusText(pendingCustom ?? isCustomEnabled()) };
+  }
+  const target = arg === "on";
+  pendingCustom = target;
+  system.run(
+    safe("custom", () => {
+      if (pendingCustom === target) pendingCustom = undefined;
+      setCustomEnabled(target);
+      world.sendMessage(customChangedText(target));
+    }),
+  );
+  const modeOff = target && !(pending ?? isEnabled());
+  const message = modeOff ? `${customChangedText(target)}\n${CUSTOM_MODE_OFF_HINT}` : customChangedText(target);
+  return { status: CustomCommandStatus.Success, message };
 }
 
 /**

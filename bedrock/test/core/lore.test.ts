@@ -2,7 +2,7 @@ import { MinecraftEnchantmentTypes } from "@minecraft/vanilla-data";
 import { describe, expect, it } from "vitest";
 import { LORE_MAX_CHARS, LORE_MAX_LINES, LORE_TAG } from "../../src/core/config";
 import { displayName } from "../../src/core/enchant-names";
-import { composeLore, encodeLoreLine, parseLoreLine, splitLore } from "../../src/core/lore";
+import { composeLore, encodeLoreLine, loreColor, parseLoreLine, splitLore } from "../../src/core/lore";
 
 const VANILLA = Object.values(MinecraftEnchantmentTypes) as string[];
 
@@ -106,3 +106,50 @@ describe("splitLore / composeLore", () => {
     expect(composeLore([], new Map())).toEqual([]);
   });
 });
+
+describe("custom lore lines", () => {
+  it("encodes with a colour and parses §9 and §c lines", () => {
+    expect(encodeLoreLine("Vein Miner", 3, "9")).toBe(`${LORE_TAG}§9Vein Miner III`);
+    expect(parseLoreLine(`${LORE_TAG}§9Vein Miner III`)).toEqual({ name: "Vein Miner", level: 3 });
+    expect(parseLoreLine(`${LORE_TAG}§cCurse of Hiccups II`)).toEqual({ name: "Curse of Hiccups", level: 2 });
+    expect(parseLoreLine(`${LORE_TAG}§zVein Miner III`)).toBeUndefined();
+    expect(parseLoreLine("§9Vein Miner III")).toBeUndefined();
+  });
+
+  it("loreColor: d for vanilla, 9 for custom, c for custom curses", () => {
+    expect(loreColor("minecraft:sharpness")).toBe("d");
+    expect(loreColor("minecraft:binding")).toBe("d");
+    expect(loreColor("enchantaholic:magnet")).toBe("9");
+    expect(loreColor("enchantaholic:butterfingers")).toBe("c");
+  });
+
+  it("composeLore colours each line and interleaves custom and vanilla by name", () => {
+    const managed = new Map([
+      ["minecraft:unbreaking", 4],
+      ["enchantaholic:magnet", 2],
+      ["enchantaholic:hiccups", 1],
+      ["minecraft:efficiency", 6],
+    ]);
+    expect(composeLore(["mine"], managed)).toEqual([
+      "mine",
+      encodeLoreLine("Curse of Hiccups", 1, "c"),
+      encodeLoreLine("Efficiency", 6),
+      encodeLoreLine("Magnet", 2, "9"),
+      encodeLoreLine("Unbreaking", 4),
+    ]);
+  });
+
+  it("a mixed vanilla + custom lore round-trips through splitLore", () => {
+    const managed = new Map([
+      ["minecraft:sharpness", 9],
+      ["enchantaholic:vein_miner", 12],
+      ["enchantaholic:butterfingers", 3],
+    ]);
+    const lore = composeLore(["§oMy pick"], managed);
+    const s = splitLore(lore);
+    expect(s.user).toEqual(["§oMy pick"]);
+    expect(s.managed).toEqual(managed);
+    expect(composeLore(s.user, s.managed)).toEqual(lore);
+  });
+});
+

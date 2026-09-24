@@ -83,6 +83,60 @@ When a grindstone or anvil removes an enchantment or lowers it below its max, it
 Every player can use it, and it works with cheats off. Settings are per player (dynamic property `enchantaholic:notify`
 on the player) and are kept across sessions. Both are on by default.
 
+### Custom enchantments (operators)
+
+```
+/enchantaholic:custom <on|off|status>
+```
+
+Turns Enchantaholic's own enchantments on or off for this world (off by default; see below). Only operators and command
+blocks can run it, and it works with cheats off. The setting is saved in the world (dynamic property
+`enchantaholic:custom`) and a change is announced in chat.
+
+## Custom enchantments (optional, off by default)
+
+Want more chaos? Enchantaholic ships 11 enchantments of its own, including two curses. They're **off by default**.
+Turn them on with `/enchantaholic:custom on` and they join the random rolls alongside vanilla enchantments, and they can
+land on **any** item. Yes, a stick with Barrage. Levels stack past I just like everything else in Enchantaholic.
+
+Enchantaholic Mode has to be on too, because custom enchantments arrive through the same block-break rolls.
+If you turn customs off, nothing new gets rolled and existing custom enchantments go dormant (they do nothing).
+Items keep them, and they wake up again when you turn customs back on.
+
+| Enchantment | Works when | Effect at level L | Safety cap |
+|---|---|---|---|
+| Vein Miner | held, breaking a block | Also breaks up to 8×L connected blocks of the same type, with drops (and durability use) | 256 blocks |
+| Barrage | held, shooting/throwing (bows, crossbows, tridents, snowballs, eggs, wind charges) | Fires 10×L extra copies with random spread. Extra copies can't be picked up. | 64 per shot |
+| Yeet | held, melee hit | Launches the target up and away. Higher levels launch harder. | Launch speed capped |
+| Kaboom | held, projectiles you fire | Projectiles explode on impact with power 1 + 0.5×L. No block damage, no fire. | Power 8 |
+| Party Popper | held, killing a mob | L fireworks + particles | 16 fireworks |
+| Chicken Rain | held, breaking a block | L×5 % chance to spawn a chicken | 100 %, 1 chicken per block |
+| Midas Touch | held, breaking a block | L×3 % chance to drop a gold nugget. From level 34 it can drop a gold ingot instead. | 100 % |
+| Magnet | held or worn | Pulls item drops and XP orbs within 3 + L blocks toward you | 24-block radius |
+| Moon Boots | worn (any armor slot) | Jump Boost L and no fall damage | Jump Boost 10 |
+| Curse of Butterfingers | held | L×2 % chance per hit or block break to drop the held item | 50 % |
+| Curse of Hiccups | anywhere in your inventory | Every ~10 s, L×3 % chance of an involuntary hop, with a *hic!* | 60 % |
+
+**Fair play:** blocks broken and mobs spawned by these effects never trigger new Enchantaholic rolls.
+Explosions never break blocks. Barrage copies can't be picked up, so there's no duping.
+
+Custom enchantments live in the item's lore as a blue `Vein Miner III` line (curses are red). On items that stack
+(dirt, sticks…) the lore is the only record; on other items the level is also stored in the item dynamic property
+`enchantaholic:custom_levels`. With customs on, items that can't normally be enchanted can roll custom enchantments too.
+There's no level cap, but every effect still respects its safety cap.
+
+**Known limits (Script API):**
+- Vein Miner drops come from `/setblock … destroy`, as if the block were broken with no tool: no Fortune or Silk Touch
+  (glass and ice drop nothing), no XP from ores, no break event for other add-ons, and it ignores claim/spawn protection.
+- Arrow pickup can't be disabled from script, so Barrage copies are removed on impact, or after 10 s if they hit nothing.
+- `applyImpulse` doesn't work on players: Yeet and Hiccups use knockback on players, and knockback resistance reduces Yeet.
+- Tridents are matched to the thrower through item-use snapshots; dispenser tridents are ignored.
+- Kaboom explosions can hurt the shooter and damage item entities, armor stands and item frames (never blocks).
+- Egg Barrage copies can hatch chickens (vanilla egg behaviour), bounded by the 64-copy cap.
+- Custom lore stops a stack from merging with plain items. Renaming keeps it; anvil combining does not merge custom levels.
+- Party Popper rockets have no firework-star data (no API for it), so they give a plain pop plus particles.
+- Moon Boots cancels fall damage in a before-event; other add-ons touching the same event may interact with it.
+
 ## Limitations
 
 - Real enchantment levels stop at the vanilla maximum. Levels above it matter in gameplay only for the enchantments in

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EnchantInfo } from "../../src/core/eligibility";
+import { CUSTOM_ENCHANTS } from "../../src/core/custom/roster";
 import { mulberry32 } from "../../src/core/rng";
 import { iteratePlans, type ItemProbe, type SlotCandidate } from "../../src/core/selection";
 
@@ -17,11 +18,13 @@ interface ProbeSpec {
   levels?: Record<string, number>;
   compatible?: string[];
   throwOn?: string[];
+  customs?: Record<string, number>;
 }
 
 function probe(spec: ProbeSpec = {}): ItemProbe & { canAddCalls: string[] } {
   const canAddCalls: string[] = [];
   return {
+    ...(spec.customs ? { customLevel: (id: string) => spec.customs?.[id] ?? 0 } : {}),
     typeId: spec.typeId ?? "minecraft:diamond_sword",
     enchantable: spec.enchantable ?? true,
     canAddCalls,
@@ -156,3 +159,65 @@ describe("iteratePlans", () => {
     expect(enchants).toHaveLength(ALL.length);
   });
 });
+
+describe("iteratePlans with custom enchants", () => {
+  const everything = ALL.map((e) => e.id);
+  const seq = (plans: Iterable<{ key: unknown; enchant: EnchantInfo; fromLevel: number }>) =>
+    [...plans].map((p) => `${String(p.key)}/${p.enchant.id}/${p.fromLevel}`);
+
+  it("empty customs gives the same outputs as without the argument (golden)", () => {
+    for (const seed of [1, 7, 77, 1234]) {
+      const slots = (): SlotCandidate<string>[] => [
+        slot("dirt", probe({ enchantable: false, typeId: "minecraft:dirt" })),
+        ...["0", "1", "2"].map((k) => slot(k, probe({ compatible: everything, levels: { "minecraft:smite": 6 } }))),
+      ];
+      expect(seq(iteratePlans(slots(), ALL, mulberry32(seed), []))).toEqual(seq(iteratePlans(slots(), ALL, mulberry32(seed))));
+    }
+    const golden = seq(iteratePlans([0, 1].map((k) => slot(k, probe({ compatible: [SHARP.id, PROT.id] }))), ALL, mulberry32(42), []));
+    expect(golden).toHaveLength(4);
+    expect(golden.every((s) => /^[01]\/minecraft:(sharpness|protection)\/0$/.test(s))).toBe(true);
+  });
+
+  it("a dirt-only inventory yields custom plans only (every custom, once)", () => {
+    for (let seed = 0; seed < 50; seed++) {
+      const plans = [
+        ...iteratePlans([slot("dirt", probe({ enchantable: false, typeId: "minecraft:dirt" }))], ALL, mulberry32(seed), CUSTOM_ENCHANTS),
+      ];
+      expect(plans).toHaveLength(CUSTOM_ENCHANTS.length);
+      expect(plans.every((p) => p.enchant.custom === true && p.key === "dirt")).toBe(true);
+      expect(new Set(plans.map((p) => p.enchant.id)).size).toBe(CUSTOM_ENCHANTS.length);
+    }
+  });
+
+  it("fromLevel comes from customLevel (missing customLevel = 0)", () => {
+    const withLevels = probe({ enchantable: false, customs: { "enchantaholic:magnet": 4 } });
+    const plans = [...iteratePlans([slot("s", withLevels)], [], mulberry32(3), CUSTOM_ENCHANTS)];
+    const magnet = plans.find((p) => p.enchant.id === "enchantaholic:magnet");
+    expect(magnet).toMatchObject({ fromLevel: 4, toLevel: 5 });
+    expect(plans.filter((p) => p.enchant.id !== "enchantaholic:magnet").every((p) => p.fromLevel === 0 && p.toLevel === 1)).toBe(true);
+    const bare = probe({ enchantable: false });
+    const first = iteratePlans([slot("b", bare)], [], mulberry32(3), CUSTOM_ENCHANTS).next().value;
+    expect(first).toMatchObject({ fromLevel: 0, toLevel: 1 });
+  });
+
+  it("customs are yielded without canAddFresh calls", () => {
+    const item = probe({ compatible: [] });
+    const plans = [...iteratePlans([slot("s", item)], ALL, mulberry32(9), CUSTOM_ENCHANTS)];
+    expect(plans.every((p) => p.enchant.custom)).toBe(true);
+    expect(item.canAddCalls.some((id) => id.startsWith("enchantaholic:"))).toBe(false);
+  });
+
+  it("customs and vanilla share the pool with equal weight (mulberry32)", () => {
+    const compat = [SHARP.id, UNBREAKING.id, PROT.id];
+    let custom = 0;
+    const N = 20_000;
+    for (let seed = 0; seed < N; seed++) {
+      const p = iteratePlans([slot("s", probe({ compatible: compat }))], ALL, mulberry32(seed), CUSTOM_ENCHANTS).next().value;
+      if (p?.enchant.custom) custom++;
+    }
+    // Pool: 4 vanilla (smite is not addable → skipped) + 11 customs, equally weighted, so the first
+    // yielded plan is custom with probability 11 / (3 addable vanilla + 11 customs).
+    expect(Math.abs(custom / N - 11 / 14)).toBeLessThan(0.02);
+  });
+});
+

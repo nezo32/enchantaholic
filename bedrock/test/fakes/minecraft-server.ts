@@ -10,9 +10,12 @@
  *       world.afterEvents.X.emit(ev) / world.beforeEvents.X.emit(ev) / system.beforeEvents.startup.emit(ev)
  *       system.flushRuns()       run queued system.run callbacks
  *       system.tickIntervals(n)  invoke every live runInterval callback n times
+ *       system.advance(n)        simulate n game ticks (runs, timeouts, intervals by period; currentTick++)
+ *       world.getDimension(id)   FakeDimension with a sparse block map, entity list and call logs
  *       world.messages           world.sendMessage log;  world.players (getAllPlayers source)
  *   - Classes: FakeItemStack (exported also as ItemStack), FakeEnchantable, FakeContainer,
- *     FakeEquippable, FakeEntity, FakePlayer, FakeTypeFamily, FakeCustomCommandRegistry.
+ *     FakeEquippable, FakeEntity, FakePlayer, FakeTypeFamily, FakeCustomCommandRegistry, FakeDimension,
+ *     FakeBlock, FakeProjectileComponent, FakeItemEntityComponent, FakeDurability.
  *   - Cast a fake to the real type with `asReal<Player>(fake)` (see builders.ts helpers).
  */
 import type * as mc from "@minecraft/server";
@@ -39,8 +42,17 @@ export enum EntityComponentTypes {
   Equippable = "minecraft:equippable",
   Health = "minecraft:health",
   Inventory = "minecraft:inventory",
+  Item = "minecraft:item",
   Projectile = "minecraft:projectile",
   TypeFamily = "minecraft:type_family",
+}
+
+export enum EntityInitializationCause {
+  Born = "Born",
+  Event = "Event",
+  Loaded = "Loaded",
+  Spawned = "Spawned",
+  Transformed = "Transformed",
 }
 
 export enum ItemComponentTypes {
@@ -135,6 +147,10 @@ export class EnchantmentTypeUnknownIdError extends Error {
 export class InvalidContainerSlotError extends Error {
   override name = "InvalidContainerSlotError";
 }
+/** Thrown by FakePlayer.applyImpulse: the engine does not support impulses on players. */
+export class FakeUnsupportedError extends Error {
+  override name = "FakeUnsupportedError";
+}
 
 // ───────────────────────────── helpers ─────────────────────────────
 
@@ -146,6 +162,21 @@ export function asReal<T>(fake: unknown): T {
 function ns(id: string): string {
   return id.includes(":") ? id : `minecraft:${id}`;
 }
+
+export interface Vec3 {
+  x: number;
+  y: number;
+  z: number;
+}
+
+export interface ExplosionOptionsLike {
+  breaksBlocks?: boolean;
+  causesFire?: boolean;
+  allowUnderwater?: boolean;
+  source?: unknown;
+}
+
+const v3 = (v: Vec3): Vec3 => ({ x: v.x, y: v.y, z: v.z });
 
 // ───────────────────────────── execution privileges ─────────────────────────────
 
@@ -185,6 +216,21 @@ export const NO_RESTRICTED_APIS: ReadonlySet<string> = new Set([
   "CustomCommandRegistry.registerEnum",
   "PlayerBreakBlockAfterEventSignal.subscribe",
   "EntityHurtBeforeEventSignal.subscribe",
+  "Dimension.runCommand",
+  "Dimension.spawnEntity",
+  "Dimension.spawnItem",
+  "Dimension.spawnParticle",
+  "Dimension.playSound",
+  "Dimension.createExplosion",
+  "Entity.addTag",
+  "Entity.applyImpulse",
+  "Entity.applyKnockback",
+  "Entity.clearVelocity",
+  "Entity.teleport",
+  "Entity.remove",
+  "Entity.kill",
+  "EntityProjectileComponent.shoot",
+  "Block.setType",
 ]);
 
 /** Members that are NOT `early-execution-allowed` in 2.10.0 and that the fake rejects in early mode. */
@@ -655,12 +701,38 @@ export class FakeItemStack {
     c.keepOnDeath = this.keepOnDeath;
     c.lockMode = this.lockMode;
     for (const [k, v] of this.props) c.props.set(k, v);
-    for (const [k, v] of this.components) c.components.set(k, v);
+    for (const [k, v] of this.components) c.components.set(k, cloneComponent(v));
     return c;
   }
 }
 
+/** Components with a clone() (e.g. FakeDurability) are copied with the stack, like the engine does. */
+function cloneComponent(v: unknown): unknown {
+  const c = v as { clone?: () => unknown } | undefined;
+  return c && typeof c.clone === "function" ? c.clone() : v;
+}
+
 export { FakeItemStack as ItemStack };
+
+/** ItemDurabilityComponent ("minecraft:durability"). */
+export class FakeDurability {
+  readonly typeId = "minecraft:durability";
+  unbreakable = false;
+  constructor(
+    public maxDurability: number,
+    public damage = 0,
+  ) {}
+
+  get isValid(): boolean {
+    return true;
+  }
+
+  clone(): FakeDurability {
+    const c = new FakeDurability(this.maxDurability, this.damage);
+    c.unbreakable = this.unbreakable;
+    return c;
+  }
+}
 
 // ───────────────────────────── containers / equipment ─────────────────────────────
 
@@ -762,6 +834,46 @@ export class FakeTypeFamily {
   }
 }
 
+// ───────────────────────────── entity components ─────────────────────────────
+
+/** Entity types that get a FakeProjectileComponent when spawned through FakeDimension.spawnEntity. */
+export const PROJECTILE_TYPE_IDS: ReadonlySet<string> = new Set([
+  "minecraft:arrow",
+  "minecraft:thrown_trident",
+  "minecraft:snowball",
+  "minecraft:egg",
+  "minecraft:wind_charge_projectile",
+  "minecraft:fireworks_rocket",
+]);
+
+/** EntityProjectileComponent: writable owner; shoot() logs and sets the entity velocity. */
+export class FakeProjectileComponent {
+  readonly typeId = "minecraft:projectile";
+  owner?: FakeEntity;
+  readonly shots: Array<{ velocity: Vec3; options?: unknown }> = [];
+
+  constructor(readonly entity?: FakeEntity) {}
+
+  get isValid(): boolean {
+    return this.entity?.isValid ?? true;
+  }
+
+  shoot(velocity: Vec3, options?: unknown): void {
+    guard("EntityProjectileComponent.shoot");
+    this.shots.push({ velocity: v3(velocity), ...(options !== undefined ? { options } : {}) });
+    if (this.entity) this.entity.velocity = v3(velocity);
+  }
+}
+
+/** EntityItemComponent ("minecraft:item") of an item entity. */
+export class FakeItemEntityComponent {
+  readonly typeId = "minecraft:item";
+  constructor(readonly itemStack: FakeItemStack) {}
+  get isValid(): boolean {
+    return true;
+  }
+}
+
 // ───────────────────────────── entities ─────────────────────────────
 
 export interface FakeEffect {
@@ -784,12 +896,94 @@ export class FakeEntity {
   readonly addedEffects: Array<{ id: string; duration: number; options: unknown }> = [];
   readonly damageLog: Array<{ amount: number; options: unknown }> = [];
   isValid = true;
-  location = { x: 0, y: 64, z: 0 };
+  location: Vec3 = { x: 0, y: 64, z: 0 };
+  dimension: FakeDimension;
+  velocity: Vec3 = { x: 0, y: 0, z: 0 };
+  viewDirection: Vec3 = { x: 0, y: 0, z: 1 };
+  readonly tags = new Set<string>();
+  spawnOptions?: unknown;
+  readonly impulses: Vec3[] = [];
+  readonly knockbacks: Array<{ h: { x: number; z: number }; v: number }> = [];
+  readonly teleports: Vec3[] = [];
 
   constructor(typeId: string, opts: { families?: readonly string[] } = {}) {
     this.id = String(nextEntityId++);
     this.typeId = ns(typeId);
+    this.dimension = world.getDimension("overworld");
     if (opts.families) this.components.set(EntityComponentTypes.TypeFamily, new FakeTypeFamily(opts.families));
+  }
+
+  addTag(tag: string): boolean {
+    guard("Entity.addTag");
+    if (this.tags.has(tag)) return false;
+    this.tags.add(tag);
+    return true;
+  }
+
+  hasTag(tag: string): boolean {
+    return this.tags.has(tag);
+  }
+
+  removeTag(tag: string): boolean {
+    return this.tags.delete(tag);
+  }
+
+  getTags(): string[] {
+    return [...this.tags];
+  }
+
+  getVelocity(): Vec3 {
+    return v3(this.velocity);
+  }
+
+  clearVelocity(): void {
+    guard("Entity.clearVelocity");
+    this.velocity = { x: 0, y: 0, z: 0 };
+  }
+
+  applyImpulse(vector: Vec3): void {
+    guard("Entity.applyImpulse");
+    this.impulses.push(v3(vector));
+    this.velocity = { x: this.velocity.x + vector.x, y: this.velocity.y + vector.y, z: this.velocity.z + vector.z };
+  }
+
+  applyKnockback(horizontalForce: { x: number; z: number }, verticalStrength: number): void {
+    guard("Entity.applyKnockback");
+    this.knockbacks.push({ h: { x: horizontalForce.x, z: horizontalForce.z }, v: verticalStrength });
+  }
+
+  teleport(location: Vec3, teleportOptions?: { dimension?: FakeDimension }): void {
+    guard("Entity.teleport");
+    this.teleports.push(v3(location));
+    this.location = v3(location);
+    if (teleportOptions?.dimension) this.dimension = teleportOptions.dimension;
+  }
+
+  getHeadLocation(): Vec3 {
+    return { x: this.location.x, y: this.location.y + 1.62, z: this.location.z };
+  }
+
+  getViewDirection(): Vec3 {
+    return v3(this.viewDirection);
+  }
+
+  /** Invalidates the entity and emits world.afterEvents.entityRemove. */
+  remove(): void {
+    guard("Entity.remove");
+    this.despawn();
+  }
+
+  kill(): boolean {
+    guard("Entity.kill");
+    if (!this.isValid) return false;
+    this.despawn();
+    return true;
+  }
+
+  private despawn(): void {
+    if (!this.isValid) return;
+    this.isValid = false;
+    world.afterEvents.entityRemove.emit({ removedEntityId: this.id, typeId: this.typeId });
   }
 
   getComponent(componentId: string): unknown {
@@ -900,10 +1094,217 @@ export class FakePlayer extends FakeEntity {
     this.sounds.push({ soundId, options: soundOptions });
   }
 
+  /** The engine does not move players with impulses; the fake makes that loud. */
+  override applyImpulse(vector: Vec3): void {
+    guard("Entity.applyImpulse");
+    throw new FakeUnsupportedError(`applyImpulse(${JSON.stringify(vector)}) is not supported on players`);
+  }
+
   sendMessage(message: unknown): void {
     this.messages.push(message);
   }
 }
+
+// ───────────────────────────── blocks / dimensions ─────────────────────────────
+
+const MIN_Y = -64;
+const MAX_Y = 319;
+const LIQUIDS = new Set(["minecraft:water", "minecraft:lava", "minecraft:flowing_water", "minecraft:flowing_lava"]);
+
+const keyOf = (p: Vec3): string => `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
+
+/** A live view of one position in a FakeDimension (reads the block map each time). */
+export class FakeBlock {
+  readonly location: Vec3;
+  isValid = true;
+
+  constructor(
+    readonly dimension: FakeDimension,
+    location: Vec3,
+  ) {
+    this.location = { x: Math.floor(location.x), y: Math.floor(location.y), z: Math.floor(location.z) };
+  }
+
+  get x(): number {
+    return this.location.x;
+  }
+  get y(): number {
+    return this.location.y;
+  }
+  get z(): number {
+    return this.location.z;
+  }
+
+  get typeId(): string {
+    return this.dimension.typeAt(this.location);
+  }
+
+  get isAir(): boolean {
+    return this.typeId === "minecraft:air";
+  }
+
+  get isLiquid(): boolean {
+    return LIQUIDS.has(this.typeId);
+  }
+
+  get permutation(): { type: { id: string } } {
+    return { type: { id: this.typeId } };
+  }
+
+  center(): Vec3 {
+    return { x: this.x + 0.5, y: this.y + 0.5, z: this.z + 0.5 };
+  }
+
+  bottomCenter(): Vec3 {
+    return { x: this.x + 0.5, y: this.y, z: this.z + 0.5 };
+  }
+
+  setType(typeId: string): void {
+    guard("Block.setType");
+    this.dimension.setBlock(this.location, typeId);
+  }
+}
+
+const SETBLOCK_RE = /^\/?setblock\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+([\w:.]+)(?:\s+(destroy|replace|keep))?\s*$/;
+
+export class FakeDimension {
+  /** "x,y,z" → typeId; missing = "minecraft:air". */
+  readonly blocks = new Map<string, string>();
+  /** Keys for which getBlock returns undefined (unloaded chunks). */
+  readonly unloaded = new Set<string>();
+  /** Every entity spawned/added here (including removed ones: check isValid). */
+  readonly entities: FakeEntity[] = [];
+  readonly commands: string[] = [];
+  readonly particles: Array<{ id: string; location: Vec3 }> = [];
+  readonly sounds: Array<{ id: string; location: Vec3; options?: unknown }> = [];
+  readonly explosions: Array<{ location: Vec3; radius: number; options?: ExplosionOptionsLike }> = [];
+
+  constructor(readonly id: string) {}
+
+  get isValid(): boolean {
+    return true;
+  }
+
+  /** Test helper. */
+  setBlock(p: Vec3, typeId: string): void {
+    const id = ns(typeId);
+    if (id === "minecraft:air") this.blocks.delete(keyOf(p));
+    else this.blocks.set(keyOf(p), id);
+  }
+
+  /** Test helper. */
+  typeAt(p: Vec3): string {
+    return this.blocks.get(keyOf(p)) ?? "minecraft:air";
+  }
+
+  /** Test helper: places an entity here without a spawn event. */
+  addEntity<T extends FakeEntity>(e: T, location?: Vec3): T {
+    e.dimension = this;
+    if (location) e.location = v3(location);
+    if (!this.entities.includes(e)) this.entities.push(e);
+    return e;
+  }
+
+  getBlock(p: Vec3): FakeBlock | undefined {
+    const y = Math.floor(p.y);
+    if (y < MIN_Y || y > MAX_Y || this.unloaded.has(keyOf(p))) return undefined;
+    return new FakeBlock(this, p);
+  }
+
+  /**
+   * Logs every command. Implements `setblock X Y Z <block> [destroy|replace|keep]`: `destroy` of a
+   * non-air block drops one item of the old type at the block center (as a spawned item entity).
+   * Invalid setblock syntax throws; other commands succeed without effect.
+   */
+  runCommand(commandString: string): { successCount: number } {
+    guard("Dimension.runCommand");
+    this.commands.push(commandString);
+    const cmd = commandString.trim();
+    if (!/^\/?setblock\b/.test(cmd)) return { successCount: 1 };
+    const m = SETBLOCK_RE.exec(cmd);
+    if (!m) throw new Error(`Syntax error: ${commandString}`);
+    const p = { x: Number(m[1]), y: Number(m[2]), z: Number(m[3]) };
+    const block = this.getBlock(p);
+    if (!block) return { successCount: 0 };
+    const newType = ns(m[4] as string);
+    const mode = m[5] ?? "replace";
+    const oldType = block.typeId;
+    if (mode === "keep" && oldType !== "minecraft:air") return { successCount: 0 };
+    if (oldType === newType) return { successCount: 0 };
+    const center = block.center();
+    this.setBlock(p, newType);
+    if (mode === "destroy" && oldType !== "minecraft:air") this.spawnItem(new FakeItemStack(oldType), center);
+    return { successCount: 1 };
+  }
+
+  /** Attaches FakeProjectileComponent for PROJECTILE_TYPE_IDS; emits entitySpawn synchronously. */
+  spawnEntity(identifier: string, location: Vec3, options?: { spawnEvent?: string; initialPersistence?: boolean }): FakeEntity {
+    guard("Dimension.spawnEntity");
+    const e = new FakeEntity(identifier);
+    if (PROJECTILE_TYPE_IDS.has(e.typeId)) e.components.set(EntityComponentTypes.Projectile, new FakeProjectileComponent(e));
+    if (options !== undefined) e.spawnOptions = options;
+    this.addEntity(e, location);
+    world.afterEvents.entitySpawn.emit({ entity: e, cause: EntityInitializationCause.Spawned });
+    return e;
+  }
+
+  /** An item entity carrying a copy of `item`; emits entitySpawn synchronously. */
+  spawnItem(itemStack: FakeItemStack, location: Vec3): FakeEntity {
+    guard("Dimension.spawnItem");
+    const e = new FakeEntity("minecraft:item");
+    e.components.set(EntityComponentTypes.Item, new FakeItemEntityComponent(itemStack.clone()));
+    this.addEntity(e, location);
+    world.afterEvents.entitySpawn.emit({ entity: e, cause: EntityInitializationCause.Spawned });
+    return e;
+  }
+
+  spawnParticle(effectName: string, location: Vec3): void {
+    guard("Dimension.spawnParticle");
+    this.particles.push({ id: effectName, location: v3(location) });
+  }
+
+  playSound(soundId: string, location: Vec3, soundOptions?: unknown): void {
+    guard("Dimension.playSound");
+    this.sounds.push({ id: soundId, location: v3(location), ...(soundOptions !== undefined ? { options: soundOptions } : {}) });
+  }
+
+  createExplosion(location: Vec3, radius: number, explosionOptions?: ExplosionOptionsLike): boolean {
+    guard("Dimension.createExplosion");
+    this.explosions.push({
+      location: v3(location),
+      radius,
+      ...(explosionOptions !== undefined ? { options: explosionOptions } : {}),
+    });
+    return true;
+  }
+
+  /** Valid entities only; euclidean distance. */
+  getEntities(q: { type?: string; location?: Vec3; maxDistance?: number; tags?: string[]; excludeTags?: string[] } = {}): FakeEntity[] {
+    const type = q.type !== undefined ? ns(q.type) : undefined;
+    return this.entities.filter((e) => {
+      if (!e.isValid || e.dimension !== this) return false;
+      if (type !== undefined && e.typeId !== type) return false;
+      if (q.location && q.maxDistance !== undefined) {
+        const dx = e.location.x - q.location.x;
+        const dy = e.location.y - q.location.y;
+        const dz = e.location.z - q.location.z;
+        if (Math.sqrt(dx * dx + dy * dy + dz * dz) > q.maxDistance) return false;
+      }
+      if (q.tags && !q.tags.every((t) => e.hasTag(t))) return false;
+      if (q.excludeTags?.some((t) => e.hasTag(t))) return false;
+      return true;
+    });
+  }
+}
+
+const DIMENSION_IDS: Readonly<Record<string, string>> = {
+  overworld: "minecraft:overworld",
+  "minecraft:overworld": "minecraft:overworld",
+  nether: "minecraft:nether",
+  "minecraft:nether": "minecraft:nether",
+  the_end: "minecraft:the_end",
+  "minecraft:the_end": "minecraft:the_end",
+};
 
 // ───────────────────────────── custom commands ─────────────────────────────
 
@@ -951,6 +1352,19 @@ class FakeWorld {
   readonly props = new Map<string, boolean | number | string | object>();
   readonly messages: unknown[] = [];
   players: FakePlayer[] = [];
+  private readonly dimensions = new Map<string, FakeDimension>();
+
+  /** Same instance per id until resetFakes(). */
+  getDimension(dimensionId: string): FakeDimension {
+    const id = DIMENSION_IDS[dimensionId];
+    if (id === undefined) throw new Error(`Unknown dimension ${dimensionId}`);
+    let d = this.dimensions.get(id);
+    if (!d) {
+      d = new FakeDimension(id);
+      this.dimensions.set(id, d);
+    }
+    return d;
+  }
 
   getDynamicProperty(identifier: string): boolean | number | string | undefined {
     guard("World.getDynamicProperty");
@@ -987,6 +1401,7 @@ class FakeWorld {
     this.props.clear();
     this.messages.length = 0;
     this.players = [];
+    this.dimensions.clear();
   }
 }
 
@@ -994,6 +1409,8 @@ interface IntervalEntry {
   id: number;
   fn: () => void;
   ticks: number;
+  /** currentTick at registration (used by advance). */
+  start: number;
 }
 
 class FakeSystem {
@@ -1003,7 +1420,7 @@ class FakeSystem {
   private nextId = 1;
   readonly runQueue: Array<{ id: number; fn: () => void }> = [];
   readonly intervals: IntervalEntry[] = [];
-  readonly timeouts: Array<{ id: number; fn: () => void; ticks: number }> = [];
+  readonly timeouts: Array<{ id: number; fn: () => void; ticks: number; start: number }> = [];
 
   run(callback: () => void): number {
     const id = this.nextId++;
@@ -1013,13 +1430,13 @@ class FakeSystem {
 
   runTimeout(callback: () => void, tickDelay = 1): number {
     const id = this.nextId++;
-    this.timeouts.push({ id, fn: callback, ticks: tickDelay });
+    this.timeouts.push({ id, fn: callback, ticks: tickDelay, start: this.currentTick });
     return id;
   }
 
   runInterval(callback: () => void, tickInterval = 1): number {
     const id = this.nextId++;
-    this.intervals.push({ id, fn: callback, ticks: tickInterval });
+    this.intervals.push({ id, fn: callback, ticks: tickInterval, start: this.currentTick });
     return id;
   }
 
@@ -1044,6 +1461,30 @@ class FakeSystem {
   tickIntervals(times = 1): void {
     for (let t = 0; t < times; t++) {
       for (const e of [...this.intervals]) e.fn();
+      this.currentTick += 1;
+    }
+  }
+
+  /**
+   * Test helper: simulate `ticks` game ticks. Per tick: flushRuns(); fire timeouts whose delay has
+   * elapsed; fire intervals whose period divides the ticks elapsed since registration; currentTick++.
+   */
+  advance(ticks = 1): void {
+    for (let t = 0; t < ticks; t++) {
+      this.flushRuns();
+      const now = this.currentTick + 1;
+      for (const e of [...this.timeouts]) {
+        if (now - e.start < Math.max(1, e.ticks)) continue;
+        const i = this.timeouts.indexOf(e);
+        if (i < 0) continue;
+        this.timeouts.splice(i, 1);
+        e.fn();
+      }
+      for (const e of [...this.intervals]) {
+        if (!this.intervals.includes(e)) continue;
+        const elapsed = now - e.start;
+        if (elapsed > 0 && elapsed % Math.max(1, e.ticks) === 0) e.fn();
+      }
       this.currentTick += 1;
     }
   }

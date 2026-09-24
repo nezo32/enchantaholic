@@ -70,6 +70,7 @@ describe("fake @minecraft/server vs real 2.10.0 typings", () => {
     CustomCommandParamType: fake.CustomCommandParamType,
     CustomCommandSource: fake.CustomCommandSource,
     EntityDamageCause: fake.EntityDamageCause,
+    EntityInitializationCause: fake.EntityInitializationCause,
   };
   for (const [name, values] of Object.entries(FAKE_ENUMS)) {
     it(`enum ${name}: every fake member exists with the same value`, () => {
@@ -156,6 +157,26 @@ describe("fake @minecraft/server vs real 2.10.0 typings", () => {
       "EntityEventOptions.entityTypes",
       "Player.selectedSlotIndex",
       "ItemStack.isStackable",
+      "Dimension.getBlock",
+      "Dimension.getEntities",
+      "Dimension.runCommand",
+      "Dimension.spawnEntity",
+      "Dimension.spawnItem",
+      "Dimension.createExplosion",
+      "Block.center",
+      "Block.isLiquid",
+      "Entity.applyKnockback",
+      "Entity.getHeadLocation",
+      "EntityItemComponent.itemStack",
+      "EntityProjectileComponent.shoot",
+      "ItemDurabilityComponent.damage",
+      "ItemDurabilityComponent.maxDurability",
+      "PlayerBreakBlockAfterEvent.itemStackBeforeBreak",
+      "WorldAfterEvents.projectileHitBlock",
+      "WorldAfterEvents.projectileHitEntity",
+      "WorldAfterEvents.entityHitEntity",
+      "WorldAfterEvents.entityDie",
+      "World.getDimension",
     ]) {
       expect(members.has(api), api).toBe(true);
     }
@@ -185,3 +206,48 @@ describe("fake privilege simulation", () => {
     expect(() => fake._withExecMode("early", () => fake.EnchantmentTypes.getAll())).toThrow(fake.FakePrivilegeError);
   });
 });
+
+describe("fake world simulation (custom enchantment support)", () => {
+  it("dimensions: blocks, setblock destroy drops, entity spawn events and queries", () => {
+    fake.resetFakes();
+    const dim = fake.world.getDimension("overworld");
+    expect(fake.world.getDimension("minecraft:overworld")).toBe(dim);
+    dim.setBlock({ x: 1, y: 10, z: 1 }, "minecraft:iron_ore");
+    expect(dim.getBlock({ x: 1.7, y: 10.2, z: 1 })?.typeId).toBe("minecraft:iron_ore");
+    expect(dim.getBlock({ x: 0, y: -65, z: 0 })).toBeUndefined();
+    dim.unloaded.add("5,5,5");
+    expect(dim.getBlock({ x: 5, y: 5, z: 5 })).toBeUndefined();
+    const spawned: unknown[] = [];
+    fake.world.afterEvents.entitySpawn.subscribe((ev: { entity: unknown }) => spawned.push(ev.entity));
+    expect(dim.runCommand("setblock 1 10 1 air destroy").successCount).toBe(1);
+    expect(dim.typeAt({ x: 1, y: 10, z: 1 })).toBe("minecraft:air");
+    const drop = spawned[0] as fake.FakeEntity;
+    expect(drop.typeId).toBe("minecraft:item");
+    expect((drop.getComponent("minecraft:item") as fake.FakeItemEntityComponent).itemStack.typeId).toBe("minecraft:iron_ore");
+    expect(() => dim.runCommand("setblock 1 x 1 air")).toThrow();
+    const arrow = dim.spawnEntity("minecraft:arrow", { x: 0, y: 64, z: 0 });
+    expect(arrow.getComponent("minecraft:projectile")).toBeInstanceOf(fake.FakeProjectileComponent);
+    expect(dim.getEntities({ type: "minecraft:arrow", location: { x: 0, y: 64, z: 3 }, maxDistance: 3 })).toEqual([arrow]);
+    arrow.remove();
+    expect(dim.getEntities({ type: "minecraft:arrow" })).toEqual([]);
+  });
+
+  it("new NR APIs are guarded, players reject impulses, and advance() runs timeouts/intervals by period", () => {
+    fake.resetFakes();
+    const dim = fake.world.getDimension("overworld");
+    fake.world.beforeEvents.entityHurt.subscribe(() => {
+      expect(() => dim.runCommand("say hi")).toThrow(fake.FakePrivilegeError);
+      expect(() => new fake.FakeEntity("minecraft:cow").addTag("x")).toThrow(fake.FakePrivilegeError);
+    });
+    fake.world.beforeEvents.entityHurt.emit({});
+    expect(() => new fake.FakePlayer().applyImpulse({ x: 0, y: 1, z: 0 })).toThrow(fake.FakeUnsupportedError);
+    const log: string[] = [];
+    fake.system.runTimeout(() => log.push("t3"), 3);
+    fake.system.runInterval(() => log.push("i2"), 2);
+    fake.system.run(() => log.push("r"));
+    fake.system.advance(4);
+    expect(log).toEqual(["r", "i2", "t3", "i2"]);
+    expect(fake.system.currentTick).toBe(4);
+  });
+});
+

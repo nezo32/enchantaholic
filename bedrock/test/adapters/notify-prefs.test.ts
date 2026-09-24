@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, type MockInstance } from "vitest";
-import { getNotifyPrefs, registerNotifyPrefs, setNotifyPrefs, type PrefsHolder } from "../../src/adapters/notify-prefs";
+import {
+  getNotifyPrefs,
+  registerNotifyPrefs,
+  setNotifyPrefs,
+  type PrefsHolder,
+} from "../../src/adapters/notify-prefs";
 import { PROP_NOTIFY } from "../../src/core/config";
 import { DEFAULT_NOTIFY } from "../../src/core/notify";
 import { makePlayer } from "../fakes/builders";
@@ -24,7 +29,9 @@ describe("notify prefs adapter", () => {
 
   it("set updates the cache at once and persists only after system.run (restricted execution)", () => {
     const p = makePlayer();
-    _withExecMode("restricted", () => setNotifyPrefs(p, { sound: false, message: true }));
+    _withExecMode("restricted", () =>
+      setNotifyPrefs(p, { sound: false, message: true }),
+    );
     expect(getNotifyPrefs(p)).toEqual({ sound: false, message: true });
     expect(p.props.has(PROP_NOTIFY)).toBe(false);
     system.flushRuns();
@@ -43,13 +50,17 @@ describe("notify prefs adapter", () => {
     expect(getNotifyPrefs(p)).toEqual({ sound: true, message: false });
   });
 
-  it.each([42, "not json", "[]", "null", '{"sound":'])("a corrupt stored value (%j) gives DEFAULT without warnings", (raw) => {
-    const p = makePlayer();
-    p.props.set(PROP_NOTIFY, raw);
-    for (let i = 0; i < 5; i++) expect(getNotifyPrefs(p)).toEqual(DEFAULT_NOTIFY);
-    expect(p.props.get(PROP_NOTIFY)).toBe(raw); // reading never rewrites
-    expect(warn).not.toHaveBeenCalled();
-  });
+  it.each([42, "not json", "[]", "null", '{"sound":'])(
+    "a corrupt stored value (%j) gives DEFAULT without warnings",
+    (raw) => {
+      const p = makePlayer();
+      p.props.set(PROP_NOTIFY, raw);
+      for (let i = 0; i < 5; i++)
+        expect(getNotifyPrefs(p)).toEqual(DEFAULT_NOTIFY);
+      expect(p.props.get(PROP_NOTIFY)).toBe(raw); // reading never rewrites
+      expect(warn).not.toHaveBeenCalled();
+    },
+  );
 
   it("a throwing read warns once and returns DEFAULT", () => {
     const bad = {
@@ -93,8 +104,14 @@ describe("notify prefs adapter", () => {
     world.afterEvents.playerLeave.emit({ playerId: "p1", playerName: "Steve" });
     // A value written behind the cache's back is only visible after the entry was dropped.
     store.set(PROP_NOTIFY, '{"sound":false,"message":false}');
-    expect(getNotifyPrefs(session("p1", store))).toEqual({ sound: false, message: false });
-    world.afterEvents.playerLeave.emit({ playerId: "unknown", playerName: "X" }); // no-op
+    expect(getNotifyPrefs(session("p1", store))).toEqual({
+      sound: false,
+      message: false,
+    });
+    world.afterEvents.playerLeave.emit({
+      playerId: "unknown",
+      playerName: "X",
+    }); // no-op
     expect(warn).not.toHaveBeenCalled();
   });
 

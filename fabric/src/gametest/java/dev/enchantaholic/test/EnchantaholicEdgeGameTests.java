@@ -46,6 +46,7 @@ import net.minecraft.world.level.block.Blocks;
 /**
  * Edge-case server gametests (tester additions). Same concurrency rule as {@link EnchantaholicGameTests}:
  * mode-dependent tests set the mode and do all work synchronously.
+ * Block breaks run with Custom Enchantments OFF, as in {@link EnchantaholicGameTests}.
  */
 public class EnchantaholicEdgeGameTests {
 	/** Adventure mode is not excluded: a permitted (can_break) break triggers; shouldTrigger is true. */
@@ -63,7 +64,7 @@ public class EnchantaholicEdgeGameTests {
 				.of(helper.getLevel().registryAccess().lookupOrThrow(Registries.BLOCK), Blocks.STONE).build())));
 		player.getInventory().setItem(0, pick);
 		player.getInventory().setSelectedSlot(0);
-		breakBlock(helper, player, Blocks.STONE);
+		CustomTestSupport.withCustomsOff(helper, () -> breakBlock(helper, player, Blocks.STONE));
 		helper.assertBlockNotPresent(Blocks.STONE, BREAK_POS);
 		helper.assertValueEqual(totalLevels(player.getInventory().getItem(0)), 1, "adventure break with can_break enchants");
 		helper.succeed();
@@ -78,12 +79,12 @@ public class EnchantaholicEdgeGameTests {
 		try {
 			server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "enchantaholic off");
 			helper.assertTrue(!TestSupport.mode(helper), "command set false");
-			breakBlock(helper, player, Blocks.STONE);
+			CustomTestSupport.withCustomsOff(helper, () -> breakBlock(helper, player, Blocks.STONE));
 			helper.assertValueEqual(totalLevels(player.getInventory().getItem(0)), 0, "off via command: no enchant");
 
 			server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "enchantaholic on");
 			helper.assertTrue(TestSupport.mode(helper), "command set true");
-			breakBlock(helper, player, Blocks.STONE);
+			CustomTestSupport.withCustomsOff(helper, () -> breakBlock(helper, player, Blocks.STONE));
 			helper.assertValueEqual(totalLevels(player.getInventory().getItem(0)), 1, "on via command: one enchant");
 		} finally {
 			setMode(helper, true);

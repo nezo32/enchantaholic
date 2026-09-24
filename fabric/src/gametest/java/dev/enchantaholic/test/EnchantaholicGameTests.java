@@ -33,6 +33,10 @@ import net.minecraft.world.level.block.Blocks;
  * Every mode-dependent test therefore sets the mode at the start and does all of its breaking
  * and asserting synchronously inside the test method (no delays, no polling), so no other test
  * can run in between. Every test ends with {@code helper.succeed()}.
+ *
+ * <p>Custom Enchantments: tests that break blocks with mode ON and check an item run the breaks with the switch OFF
+ * ({@link CustomTestSupport#withCustomsOff}, synchronous, restores ON), so a freshly rolled custom effect (e.g. Curse of
+ * Butterfingers dropping the item) can't change what they count.
  */
 public class EnchantaholicGameTests {
 	private static final int HEAD = 39;
@@ -45,7 +49,7 @@ public class EnchantaholicGameTests {
 		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(0, new ItemStack(Items.STICK));
-		breakBlocks(helper, player, Blocks.STONE, 20);
+		CustomTestSupport.withCustomsOff(helper, () -> breakBlocks(helper, player, Blocks.STONE, 20));
 		ItemStack stick = player.getInventory().getItem(0);
 		helper.assertValueEqual(totalLevels(stick), 20, "total levels after 20 stone breaks");
 		helper.succeed();
@@ -199,7 +203,7 @@ public class EnchantaholicGameTests {
 		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(0, new ItemStack(Items.ENCHANTED_BOOK));
-		breakBlock(helper, player, Blocks.STONE);
+		CustomTestSupport.withCustomsOff(helper, () -> breakBlock(helper, player, Blocks.STONE));
 		ItemStack after = player.getInventory().getItem(0);
 		helper.assertValueEqual(totalLevels(after), 1, "stored total after one break");
 		helper.assertTrue(after.getOrDefault(DataComponents.ENCHANTMENTS, ItemEnchantments.EMPTY).isEmpty(),
@@ -267,7 +271,7 @@ public class EnchantaholicGameTests {
 		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(0, new ItemStack(Items.DIRT, 64));
-		breakBlocks(helper, player, Blocks.STONE, 5);
+		CustomTestSupport.withCustomsOff(helper, () -> breakBlocks(helper, player, Blocks.STONE, 5));
 		ItemStack dirt = player.getInventory().getItem(0);
 		helper.assertTrue(dirt.is(Items.DIRT), "still dirt");
 		helper.assertValueEqual(dirt.getCount(), 64, "whole stack stays together");
@@ -289,7 +293,7 @@ public class EnchantaholicGameTests {
 		ItemStack[] before = new ItemStack[slots.length];
 		for (int i = 0; i < slots.length; i++) before[i] = inv.getItem(slots[i]).copy();
 
-		breakBlock(helper, player, Blocks.STONE);
+		CustomTestSupport.withCustomsOff(helper, () -> breakBlock(helper, player, Blocks.STONE));
 
 		int changed = 0;
 		for (int i = 0; i < slots.length; i++) {

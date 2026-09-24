@@ -10,6 +10,8 @@ public final class CustomMath {
 	public static final float KABOOM_POWER_CAP = 8.0F;
 	/** Kaboom explosions per server tick (whole server); further impacts that tick fizzle. */
 	public static final int KABOOM_PER_TICK = 64;
+	/** Kaboom explosion work per server tick (whole server), 20 ms; further impacts that tick fizzle. */
+	public static final long KABOOM_NANOS_PER_TICK = 20_000_000L;
 	public static final double YEET_VERTICAL_CAP = 3.0;
 	public static final double YEET_HORIZONTAL_CAP = 3.0;
 	public static final int PARTY_POPPER_CAP = 16;

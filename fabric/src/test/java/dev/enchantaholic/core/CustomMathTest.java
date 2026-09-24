@@ -50,6 +50,7 @@ class CustomMathTest {
 		assertEquals(8.0F, CustomMath.kaboomPower(1000));
 		assertEquals(8.0F, CustomMath.kaboomPower(MAX));
 		assertEquals(64, CustomMath.KABOOM_PER_TICK);
+		assertEquals(20_000_000L, CustomMath.KABOOM_NANOS_PER_TICK);
 	}
 
 	@Test

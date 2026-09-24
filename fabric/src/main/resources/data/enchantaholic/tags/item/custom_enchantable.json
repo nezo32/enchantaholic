@@ -1,0 +1,25 @@
+{
+  "values": [
+    "#minecraft:enchantable/durability",
+    "#minecraft:enchantable/equippable",
+    "#minecraft:enchantable/weapon",
+    "#minecraft:enchantable/mining",
+    "#minecraft:enchantable/bow",
+    "#minecraft:enchantable/crossbow",
+    "#minecraft:enchantable/trident",
+    "#minecraft:enchantable/fishing",
+    "minecraft:snowball",
+    "minecraft:egg",
+    {
+      "id": "minecraft:blue_egg",
+      "required": false
+    },
+    {
+      "id": "minecraft:brown_egg",
+      "required": false
+    },
+    "minecraft:wind_charge",
+    "minecraft:splash_potion",
+    "minecraft:lingering_potion"
+  ]
+}

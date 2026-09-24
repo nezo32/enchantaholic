@@ -25,6 +25,7 @@ public final class ModeBootstrap {
 				.enchantaholic$takePendingMode();
 		if (pending != null) {
 			EnchantaholicMode.set(server, pending);
+			server.getDataStorage().scheduleSave(); // persist now: a crash before the first autosave must not lose the choice
 			Enchantaholic.LOGGER.info("Enchantaholic Mode {} for new world", pending ? "ON" : "OFF");
 			return;
 		}
@@ -35,8 +36,14 @@ public final class ModeBootstrap {
 		}
 		// 3. no mode.dat yet (0.1.0 world, dedicated server, other launcher): migrate the old game rule, else OFF.
 		//    Always written, so this runs once per world.
-		boolean legacy = readLegacyRule(server.getWorldPath(LevelResource.ROOT).resolve("data/minecraft/game_rules.dat"));
+		Path dataDir = server.getWorldPath(LevelResource.ROOT).resolve("data");
+		if (Files.exists(dataDir.resolve("enchantaholic/mode.dat"))) {
+			// vanilla already logged the read error and cached "absent"; the file is replaced on the next save
+			Enchantaholic.LOGGER.warn("Unreadable Enchantaholic mode.dat; resetting Enchantaholic Mode from the legacy game rule (default OFF)");
+		}
+		boolean legacy = readLegacyRule(dataDir.resolve("minecraft/game_rules.dat"));
 		EnchantaholicMode.set(server, legacy);
+		server.getDataStorage().scheduleSave();
 		if (legacy) Enchantaholic.LOGGER.info("Migrated game rule {}=true to Enchantaholic Mode ON", LEGACY_RULE_KEY);
 	}
 

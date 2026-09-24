@@ -52,7 +52,8 @@ Difficulty and hardcore settings are never changed. Levels beyond X are shown as
 3. Turn the mode on in one of two ways:
    - **New world:** Create World → Game tab → set **Enchantaholic Mode** to **ON**.
    - **Existing world or dedicated server:** an operator runs `/enchantaholic on` (`/enchantaholic status` shows the
-     current state). It is off by default.
+     current state). It is off by default. In single-player this needs cheats: Allow Commands on, or Open to LAN with
+     Allow Cheats on.
 
 **Upgrading from 0.1.0:** 0.1.0 used a game rule (`enchantaholic:enchantaholic`) instead. Worlds that had it on are
 switched ON automatically the first time they load with 0.2.0. That first load logs one harmless

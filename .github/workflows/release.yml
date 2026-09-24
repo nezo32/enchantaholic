@@ -1,6 +1,6 @@
 # Enchantaholic release: push tag vX.Y.Z[-pre] (on a commit of main) ->
 #   version -> build-mod || build-addon -> github-release -> curseforge-mod || curseforge-addon
-# Or: Actions -> Release -> Run workflow on main with create-tag to cut the tag from the UI.
+# Or: Actions -> Release -> Run workflow on main with a new tag: the tag is created on main's tip.
 # Everything runs in ONE workflow run: releases created with GITHUB_TOKEN never trigger other workflows.
 # This repo calls the reusable workflows by local path. Other repos: copy .github/templates/release-caller.yml
 # (see docs/ci/REUSABLE_RELEASE_PIPELINE.md). Maintainer runbook: docs/ci/RELEASING.md.
@@ -16,12 +16,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Tag to (re)build, release and publish, e.g. v1.2.3 (must exist unless create-tag is set)
+        description: Tag to release, e.g. v1.2.3. A new tag is created on the tip of main; an existing one is rebuilt.
         required: true
-      create-tag:
-        description: Create the tag on the current tip of main first (run the workflow from main)
-        type: boolean
-        default: false
       skip-curseforge:
         description: Only (re)build and update the GitHub release; do not upload to CurseForge
         type: boolean
@@ -39,10 +35,10 @@ permissions:
   contents: read
 
 jobs:
-  # Optional: cut the tag from the Actions tab instead of pushing it. A tag created with GITHUB_TOKEN does not
-  # start another run, so the release continues in this one.
+  # Manual runs: create the tag if it does not exist yet (on the tip of main), otherwise re-release it.
+  # A tag created with GITHUB_TOKEN does not start another run, so the release continues in this one.
   create-tag:
-    if: ${{ inputs.create-tag }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -55,11 +51,12 @@ jobs:
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          [[ "$REF" == refs/heads/main ]] || { echo "::error::Run the workflow from main to create a tag (got $REF)"; exit 1; }
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::Tag '$TAG' is not vX.Y.Z[-pre]"; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::Tag '$TAG' is not vX.Y.Z[-pre] (e.g. v1.2.3 or v1.2.3-beta.1)"; exit 1; }
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG already exists; re-run without create-tag to rebuild it"; exit 1
+            echo "Tag $TAG already exists: rebuilding and re-releasing it" | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
           fi
+          [[ "$REF" == refs/heads/main ]] || { echo "::error::Tag $TAG does not exist. Run the workflow from main to create it (got $REF)."; exit 1; }
           gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" >/dev/null
           echo "Created $TAG at $SHA" | tee -a "$GITHUB_STEP_SUMMARY"
 

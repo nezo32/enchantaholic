@@ -143,7 +143,9 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 		ctx.runOnClient(mc -> mc.player.connection.sendCommand(command));
 	}
 
+	/** The command tree packet arrives asynchronously after the player spawns: wait for it (/help is level 0). */
 	private static boolean hasClientCommand(ClientGameTestContext ctx) {
+		ctx.waitFor(mc -> mc.player.connection.getCommands().getRoot().getChild("help") != null, 20 * 10);
 		return ctx.computeOnClient(mc -> mc.player.connection.getCommands().getRoot().getChild("enchantaholic") != null);
 	}
 

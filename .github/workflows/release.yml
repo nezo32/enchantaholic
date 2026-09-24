@@ -76,10 +76,12 @@ jobs:
 
   curseforge-mod:
     needs: [version, github-release]
-    if: ${{ !inputs.skip-curseforge && vars.CURSEFORGE_PROJECT_ID != '' }}
+    if: ${{ !inputs.skip-curseforge }}
     uses: ./.github/workflows/reusable-publish-curseforge.yml
     with:
-      project-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
+      # Read inside the job so repository- and Environment-level variables both work.
+      project-id-var: CURSEFORGE_PROJECT_ID
+      environment: ${{ vars.CURSEFORGE_ENVIRONMENT || 'Enchantaholic' }}
       artifact-pattern: fabric-mod
       primary-file: "enchantaholic-!(*-sources).jar"
       additional-files: "enchantaholic-*-sources.jar"
@@ -91,14 +93,16 @@ jobs:
       tag: ${{ needs.version.outputs.tag }}
       dry-run: ${{ inputs.curseforge-dry-run == true }}
     secrets:
-      curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
 
   curseforge-addon:
     needs: [version, github-release]
-    if: ${{ !inputs.skip-curseforge && vars.CURSEFORGE_BEDROCK_PROJECT_ID != '' }}
+    if: ${{ !inputs.skip-curseforge }}
     uses: ./.github/workflows/reusable-publish-curseforge.yml
     with:
-      project-id: ${{ vars.CURSEFORGE_BEDROCK_PROJECT_ID }}
+      # Read inside the job so repository- and Environment-level variables both work.
+      project-id-var: CURSEFORGE_BEDROCK_PROJECT_ID
+      environment: ${{ vars.CURSEFORGE_ENVIRONMENT || 'Enchantaholic' }}
       api-base: ${{ vars.CURSEFORGE_BEDROCK_API_BASE || 'https://minecraft-bedrock.curseforge.com' }}
       artifact-pattern: bedrock-addon
       primary-file: "enchantaholic-*.mcaddon"
@@ -109,4 +113,4 @@ jobs:
       tag: ${{ needs.version.outputs.tag }}
       dry-run: ${{ inputs.curseforge-dry-run == true }}
     secrets:
-      curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}

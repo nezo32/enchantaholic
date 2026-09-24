@@ -131,7 +131,7 @@ gh label create bedrock        --color 5319e7 --description "Bedrock add-on"    
 
 ### Secrets and variables
 
-Settings → Secrets and variables → Actions:
+Settings → Secrets and variables → Actions. The CurseForge token and project ids may be repository-level **or** live in the GitHub Environment `Enchantaholic` (the upload jobs run in it; override the name with the repository variable `CURSEFORGE_ENVIRONMENT`). A missing project id shows up as a warning in the run, not as a silently skipped job.
 
 | Kind | Name | Value |
 |---|---|---|

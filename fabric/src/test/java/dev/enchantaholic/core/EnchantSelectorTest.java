@@ -93,6 +93,29 @@ class EnchantSelectorTest {
 	}
 
 	@Test
+	void poolDropsWhatTheSlotExcludes() {
+		SlotView<String> silky = new SlotView<>() {
+			@Override
+			public boolean isSpear() {
+				return false;
+			}
+
+			@Override
+			public int level(String enchantment) {
+				return "silk_touch".equals(enchantment) ? 1 : 0;
+			}
+
+			@Override
+			public boolean excludes(String enchantment) {
+				return "fortune".equals(enchantment);
+			}
+		};
+		List<String> all = List.of("fortune", "silk_touch", "efficiency");
+		assertEquals(List.of("silk_touch", "efficiency"), EnchantSelector.pool(silky, all, IS_LUNGE));
+		assertEquals(all, EnchantSelector.pool(FakeSlot.fresh("plain"), all, IS_LUNGE), "default excludes nothing");
+	}
+
+	@Test
 	void poolExcludesMaxedAndKeepsOrder() {
 		List<String> all = List.of("d", "a", "c", "b", "e");
 		FakeSlot slot = new FakeSlot("s", false, Map.of("a", 255, "b", 254, "e", 255));

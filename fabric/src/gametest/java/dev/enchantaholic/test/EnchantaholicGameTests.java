@@ -183,6 +183,27 @@ public class EnchantaholicGameTests {
 	}
 
 	@GameTest
+	public void fortuneAndSilkTouchExcludeEachOther(GameTestHelper helper) {
+		ItemStack silky = new ItemStack(Items.DIAMOND_PICKAXE);
+		ItemEnchanter.apply(silky, ench(helper, Enchantments.SILK_TOUCH));
+		helper.assertTrue(ItemEnchanter.excludedBy(silky, ench(helper, Enchantments.FORTUNE)), "Silk Touch blocks Fortune");
+		helper.assertFalse(ItemEnchanter.excludedBy(silky, ench(helper, Enchantments.SILK_TOUCH)), "Silk Touch can still level up");
+
+		ItemStack lucky = new ItemStack(Items.DIAMOND_PICKAXE);
+		ItemEnchanter.apply(lucky, ench(helper, Enchantments.FORTUNE));
+		helper.assertTrue(ItemEnchanter.excludedBy(lucky, ench(helper, Enchantments.SILK_TOUCH)), "Fortune blocks Silk Touch");
+		helper.assertFalse(ItemEnchanter.excludedBy(lucky, ench(helper, Enchantments.FORTUNE)), "Fortune can still level up");
+
+		// Everything maxed except the blocked one: the roll must find nothing rather than add it.
+		ServerPlayer player = survivalPlayer(helper);
+		player.getInventory().setItem(0, maxedAllExcept(helper, Items.STICK, Enchantments.FORTUNE));
+		helper.assertTrue(ItemEnchanter.enchantRandom(player, RandomSource.create(1L)).isEmpty(), "no Fortune next to Silk Touch");
+		player.getInventory().setItem(0, maxedAllExcept(helper, Items.STICK, Enchantments.SILK_TOUCH));
+		helper.assertTrue(ItemEnchanter.enchantRandom(player, RandomSource.create(1L)).isEmpty(), "no Silk Touch next to Fortune");
+		helper.succeed();
+	}
+
+	@GameTest
 	public void booksUseStoredEnchantments(GameTestHelper helper) {
 		Holder<Enchantment> sharp = ench(helper, Enchantments.SHARPNESS);
 

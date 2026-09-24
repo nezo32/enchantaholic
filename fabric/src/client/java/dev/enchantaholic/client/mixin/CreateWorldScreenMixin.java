@@ -15,8 +15,9 @@ import org.spongepowered.asm.mixin.injection.ModifyArg;
  */
 @Mixin(CreateWorldScreen.class)
 public abstract class CreateWorldScreenMixin implements CreateWorldModeHolder {
+	/** New worlds start with the mode ON; the player can switch it off on the Game tab. */
 	@Unique
-	private boolean enchantaholic$mode;
+	private boolean enchantaholic$mode = true;
 
 	@Unique
 	private boolean enchantaholic$custom;

@@ -24,14 +24,14 @@ import net.minecraft.world.level.storage.LevelResource;
 /**
  * Client gametest (not part of {@code build}; run with {@code ./gradlew runClientGameTest} under Xvfb).
  * <ol>
- * <li>World 1 (cheats on): toggle both Create World "Game" tab buttons (Enchantaholic Mode, Custom Enchantments)
- *     to ON, create, assert the saved mode and customs are ON (in memory and in data/enchantaholic/mode.dat), then
- *     flip them with /enchantaholic off|on and /enchantaholic custom off|on as the host.</li>
- * <li>Cancel: open Create World, toggle both ON, Cancel. Nothing may leak into the next world.</li>
- * <li>World 2 (cheats off): leave the buttons alone, create, assert both OFF; the host is not an op, so the command
- *     is not in the client command tree and sending it changes nothing.</li>
- * <li>Re-Create world 1 from the world list: both buttons start OFF (not copied); only Custom Enchantments is toggled
- *     ON, so the new world has customs ON and the mode OFF (the two settings are independent).</li>
+ * <li>World 1 (cheats on): Enchantaholic Mode starts ON (the default) and Custom Enchantments OFF; toggle both,
+ *     end with both ON, create, assert the saved mode and customs are ON (in memory and in data/enchantaholic/mode.dat),
+ *     then flip them with /enchantaholic off|on and /enchantaholic custom off|on as the host.</li>
+ * <li>Cancel: open Create World, switch the mode OFF and customs ON, Cancel. Nothing may leak into the next world.</li>
+ * <li>World 2 (cheats off): a fresh screen starts mode ON / customs OFF; switch the mode OFF, create, assert both OFF;
+ *     the host is not an op, so the command is not in the client command tree and sending it changes nothing.</li>
+ * <li>Re-Create world 2 from the world list: the buttons start at the defaults (mode ON, customs OFF), not copied;
+ *     switch the mode OFF and customs ON, so the new world has customs ON and the mode OFF (independent settings).</li>
  * <li>Re-open world 1 and world 2: mode.dat is read back (ON / OFF), no pending value is applied.</li>
  * </ol>
  */
@@ -41,19 +41,21 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext ctx) {
-		// 1. world 1: toggle ON, cheats on
+		// 1. world 1: starts ON (the default), toggle OFF/ON/OFF/ON, cheats on
 		openCreateWorld(ctx);
 		boolean initial = uiMode(ctx);
+		ctx.takeScreenshot("create_world_game_tab");
 		ctx.clickScreenButton(TOGGLE);
 		boolean afterFirst = uiMode(ctx);
-		ctx.takeScreenshot("create_world_game_tab");
 		ctx.clickScreenButton(TOGGLE);
 		boolean afterSecond = uiMode(ctx);
 		ctx.clickScreenButton(TOGGLE);
 		boolean afterThird = uiMode(ctx);
-		if (initial || !afterFirst || afterSecond || !afterThird) {
+		ctx.clickScreenButton(TOGGLE);
+		boolean afterFourth = uiMode(ctx);
+		if (!initial || afterFirst || !afterSecond || afterThird || !afterFourth) {
 			throw new AssertionError("toggle failed: initial=" + initial + " first=" + afterFirst
-					+ " second=" + afterSecond + " third=" + afterThird);
+					+ " second=" + afterSecond + " third=" + afterThird + " fourth=" + afterFourth);
 		}
 		// second button: default OFF, toggles independently of the mode button
 		boolean customInitial = uiCustom(ctx);
@@ -89,20 +91,21 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 		waitForCustom(ctx, true, "world 1 after /enchantaholic custom on");
 		leaveWorld(ctx);
 
-		// 2. Cancel after toggling ON must not leak
+		// 2. Cancel after toggling OFF must not leak
 		ctx.runOnClient(mc -> CreateWorldScreen.openFresh(mc, () -> mc.gui.setScreen(new TitleScreen())));
 		ctx.waitForScreen(CreateWorldScreen.class);
 		ctx.clickScreenButton(TOGGLE);
-		if (!uiMode(ctx)) throw new AssertionError("toggle before cancel did not turn ON");
+		if (uiMode(ctx)) throw new AssertionError("toggle before cancel did not turn OFF");
 		ctx.clickScreenButton(CUSTOM_TOGGLE);
 		if (!uiCustom(ctx)) throw new AssertionError("custom toggle before cancel did not turn ON");
 		ctx.clickScreenButton("gui.cancel");
 		ctx.waitForScreen(TitleScreen.class);
 
-		// 3. world 2: default OFF, cheats off (host is not an op)
+		// 3. world 2: a fresh screen starts ON again; switch it OFF, cheats off (host is not an op)
 		openCreateWorld(ctx);
-		if (uiMode(ctx)) throw new AssertionError("fresh Create World screen starts ON");
+		if (!uiMode(ctx)) throw new AssertionError("fresh Create World screen does not start ON");
 		if (uiCustom(ctx)) throw new AssertionError("fresh Create World screen starts with Custom Enchantments ON");
+		ctx.clickScreenButton(TOGGLE);
 		Path world2 = createWorld(ctx);
 		assertMode(ctx, false, "world 2 after create");
 		assertCustom(ctx, false, "world 2 after create (default)");
@@ -115,15 +118,16 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 		assertCustom(ctx, false, "world 2 after non-op /enchantaholic custom on");
 		leaveWorld(ctx);
 
-		// 4. Re-Create world 1: the button is not copied from the old world, and the handoff works on this path
+		// 4. Re-Create world 2: buttons start at the defaults, not copied; mode OFF + customs ON
 		openWorldList(ctx);
-		ctx.runOnClient(mc -> worldEntry(mc, world1).recreateWorld());
+		ctx.runOnClient(mc -> worldEntry(mc, world2).recreateWorld());
 		ctx.waitForScreen(CreateWorldScreen.class);
-		if (uiMode(ctx)) throw new AssertionError("Re-Create screen starts ON (copied from the old world?)");
+		if (!uiMode(ctx)) throw new AssertionError("Re-Create screen does not start ON (copied from the old world?)");
 		if (uiCustom(ctx)) throw new AssertionError("Re-Create screen starts with Custom Enchantments ON (copied?)");
+		ctx.clickScreenButton(TOGGLE);
 		ctx.clickScreenButton(CUSTOM_TOGGLE);
 		Path world3 = createWorld(ctx);
-		assertMode(ctx, false, "re-created world (mode button untouched)");
+		assertMode(ctx, false, "re-created world (mode switched OFF)");
 		assertCustom(ctx, true, "re-created world");
 		if (world3.equals(world1) || world3.equals(world2)) throw new AssertionError("re-create reused " + world3);
 		leaveWorld(ctx);

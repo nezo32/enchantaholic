@@ -18,17 +18,26 @@ public final class EnchantSelector {
 
 		/** Current level of e on this stack (0 if absent). */
 		int level(E enchantment);
+
+		/** True if e may not be added to this stack at all (e.g. Fortune when it already has Silk Touch). */
+		default boolean excludes(E enchantment) {
+			return false;
+		}
 	}
 
 	public record Pick<S, E>(S slot, E enchantment, int newLevel) {}
 
-	/** Enchantments allowed on this slot: drop lunge-like (isLunge) unless slot.isSpear(); drop any at MAX_LEVEL. Preserves input order. */
+	/**
+	 * Enchantments allowed on this slot: drop lunge-like (isLunge) unless slot.isSpear(); drop any at MAX_LEVEL;
+	 * drop any the slot excludes. Preserves input order.
+	 */
 	public static <E> List<E> pool(SlotView<E> slot, List<E> enchantments, Predicate<E> isLunge) {
 		boolean spear = slot.isSpear();
 		List<E> result = new ArrayList<>(enchantments.size());
 		for (E e : enchantments) {
 			if (!spear && isLunge.test(e)) continue;
 			if (!Levels.canIncrease(slot.level(e))) continue;
+			if (slot.excludes(e)) continue;
 			result.add(e);
 		}
 		return result;

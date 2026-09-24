@@ -2,6 +2,7 @@ package dev.enchantaholic;
 
 import dev.enchantaholic.mode.ModeBootstrap;
 import dev.enchantaholic.mode.ModeCommand;
+import dev.enchantaholic.net.EnchantedPayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -15,6 +16,7 @@ public final class Enchantaholic implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		EnchantedPayload.register();
 		PlayerBlockBreakEvents.AFTER.register(BlockBreakHandler::onAfterBreak);
 		ServerLifecycleEvents.SERVER_STARTING.register(ModeBootstrap::onServerStarting);
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> ModeCommand.register(dispatcher));

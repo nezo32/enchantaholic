@@ -1,18 +1,38 @@
+/**
+ * Custom commands:
+ *   /enchantaholic:toggle [on|off|status]                       game directors; world-wide mode switch
+ *   /enchantaholic:notify <sound|message|status> [on|off]       any player; own notification settings
+ * Callbacks run in restricted execution, so every write is deferred to system.run.
+ */
 import {
   CommandPermissionLevel,
   CustomCommandParamType,
   CustomCommandStatus,
   system,
   world,
+  type CustomCommandOrigin,
   type CustomCommandRegistry,
   type CustomCommandResult,
 } from "@minecraft/server";
-import { COMMAND_ENUM, COMMAND_NAME } from "../core/config";
+import {
+  COMMAND_ENUM,
+  COMMAND_NAME,
+  NOTIFY_COMMAND_NAME,
+  NOTIFY_SWITCH_ENUM,
+  NOTIFY_TARGET_ENUM,
+} from "../core/config";
 import { statusText } from "../core/message";
+import { notifySettingText, notifyStatusText } from "../core/notify";
 import { safe } from "./log";
+import { getNotifyPrefs, setNotifyPrefs, type PrefsHolder } from "./notify-prefs";
 import { isEnabled, setEnabled } from "./state";
 
 export type ToggleArg = "on" | "off" | "status";
+export type NotifyTargetArg = "sound" | "message" | "status";
+export type SwitchArg = "on" | "off";
+
+const NOTIFY_USAGE = "Usage: /enchantaholic:notify <sound|message|status> [on|off]";
+const NOT_A_PLAYER = "Only players can change Enchantaholic notifications.";
 
 /** Target state queued by a toggle but not yet persisted (world writes wait for system.run). */
 let pending: boolean | undefined;
@@ -26,7 +46,18 @@ function toArg(raw: unknown): ToggleArg | undefined {
   return raw === "on" || raw === "off" || raw === "status" ? raw : undefined;
 }
 
-/** Registers /enchantaholic:toggle [on|off|status]. Called from system.beforeEvents.startup. */
+function toTarget(raw: unknown): NotifyTargetArg | undefined {
+  return raw === "sound" || raw === "message" || raw === "status" ? raw : undefined;
+}
+
+function toSwitch(raw: unknown): SwitchArg | undefined {
+  return raw === "on" || raw === "off" ? raw : undefined;
+}
+
+/**
+ * Registers /enchantaholic:toggle [on|off|status] and /enchantaholic:notify <sound|message|status> [on|off].
+ * Called from system.beforeEvents.startup. The toggle's enum is registered first.
+ */
 export function registerCommands(registry: CustomCommandRegistry): void {
   registry.registerEnum(COMMAND_ENUM, ["on", "off", "status"]);
   registry.registerCommand(
@@ -38,6 +69,19 @@ export function registerCommands(registry: CustomCommandRegistry): void {
       optionalParameters: [{ name: COMMAND_ENUM, type: CustomCommandParamType.Enum }],
     },
     (_origin, arg?: unknown) => handleToggle(toArg(arg)),
+  );
+  registry.registerEnum(NOTIFY_TARGET_ENUM, ["sound", "message", "status"]);
+  registry.registerEnum(NOTIFY_SWITCH_ENUM, ["on", "off"]);
+  registry.registerCommand(
+    {
+      name: NOTIFY_COMMAND_NAME,
+      description: "Turn your Enchantaholic enchant sound or actionbar message on or off (sound|message|status)",
+      permissionLevel: CommandPermissionLevel.Any,
+      cheatsRequired: false,
+      mandatoryParameters: [{ name: NOTIFY_TARGET_ENUM, type: CustomCommandParamType.Enum }],
+      optionalParameters: [{ name: NOTIFY_SWITCH_ENUM, type: CustomCommandParamType.Enum }],
+    },
+    (origin, target?: unknown, value?: unknown) => handleNotify(origin, toTarget(target), toSwitch(value)),
   );
 }
 
@@ -58,4 +102,25 @@ export function handleToggle(arg: ToggleArg | undefined): CustomCommandResult {
     }),
   );
   return { status: CustomCommandStatus.Success, message: statusText(target) };
+}
+
+/**
+ * Per-player notification settings. Replies only to the caller (no broadcast). The property write is
+ * deferred to system.run; the in-memory cache is updated at once so a status or second flip in the
+ * same tick sees the new value.
+ */
+export function handleNotify(
+  origin: Pick<CustomCommandOrigin, "sourceEntity">,
+  target: NotifyTargetArg | undefined,
+  value: SwitchArg | undefined,
+): CustomCommandResult {
+  const entity = origin.sourceEntity;
+  if (entity?.typeId !== "minecraft:player") return { status: CustomCommandStatus.Failure, message: NOT_A_PLAYER };
+  if (!target) return { status: CustomCommandStatus.Failure, message: NOTIFY_USAGE };
+  const holder: PrefsHolder = entity;
+  const prefs = getNotifyPrefs(holder);
+  if (target === "status") return { status: CustomCommandStatus.Success, message: notifyStatusText(prefs) };
+  const on = value ? value === "on" : !prefs[target];
+  setNotifyPrefs(holder, { ...prefs, [target]: on });
+  return { status: CustomCommandStatus.Success, message: notifySettingText(target, on) };
 }

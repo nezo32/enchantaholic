@@ -26,3 +26,10 @@ export const MODE_LABEL = "Enchantaholic Mode";
 export const ROMAN_MAX = 3999;
 /** Item ids forced non-enchantable (see spec §9.5). */
 export const NON_ENCHANTABLE_OVERRIDE: ReadonlySet<string> = new Set<string>();
+/** Player dynamic property (JSON string) with notification prefs. `undefined` = both ON. */
+export const PROP_NOTIFY = "enchantaholic:notify";
+export const NOTIFY_COMMAND_NAME = "enchantaholic:notify";
+/** Enum values: sound | message | status. */
+export const NOTIFY_TARGET_ENUM = "enchantaholic:notify_target";
+/** Enum values: on | off. */
+export const NOTIFY_SWITCH_ENUM = "enchantaholic:notify_switch";

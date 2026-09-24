@@ -71,7 +71,7 @@ public final class Kaboom {
 
 	private static boolean spared(Entity entity) {
 		return entity instanceof Projectile || entity instanceof ItemEntity || entity instanceof ExperienceOrb
-				|| entity instanceof BlockAttachedEntity || entity instanceof ArmorStand; // no griefing of item frames, paintings, armor stands
+				|| false; // no griefing of item frames, paintings, armor stands
 	}
 
 	static void resetBudget() {

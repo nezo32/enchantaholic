@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
@@ -43,6 +44,8 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.animal.chicken.Chicken;
+import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.npc.villager.Villager;
@@ -63,6 +66,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.ChargedProjectiles;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.AABB;
@@ -330,7 +334,7 @@ public class EnchantaholicCustomGameTests {
 
 	// ---------------------------------------------------------------- kaboom
 
-	/** Bow with KABOOM 3 shot down at a glass platform: explodes once, hurts the villager next to it, breaks no block. */
+	/** Bow with KABOOM 3 shot down at a glass platform: explodes once, hurts the villager next to it, breaks no block, item frame or armor stand. */
 	@GameTest(maxTicks = 100)
 	public void kaboomNoBlockDamage(GameTestHelper h) {
 		customsOn(h);
@@ -341,6 +345,12 @@ public class EnchantaholicCustomGameTests {
 		fill(level, from, to, Blocks.GLASS.defaultBlockState());
 		Villager villager = mob(h, EntityTypes.VILLAGER, Vec3.atBottomCenterOf(floor.offset(-2, 1, -2)));
 		float health = villager.getHealth();
+		// decorations as close as the villager: no griefing
+		ArmorStand stand = new ArmorStand(level, floor.getX() + 2.5, floor.getY() + 1, floor.getZ() - 1.5);
+		level.addFreshEntity(stand);
+		ItemFrame frame = new ItemFrame(level, floor.offset(-2, 1, 2), Direction.UP);
+		frame.setItem(new ItemStack(Items.DIAMOND));
+		level.addFreshEntity(frame);
 		ServerPlayer p = player(h, Vec3.atBottomCenterOf(floor.above(6)), 0, 90);
 		ItemStack bow = ench(h, Items.BOW, CustomEnchants.KABOOM, 3);
 		p.setItemInHand(InteractionHand.MAIN_HAND, bow);
@@ -356,7 +366,11 @@ public class EnchantaholicCustomGameTests {
 			h.assertTrue(arrow.entityTags().stream().noneMatch(t -> t.startsWith(Kaboom.TAG_PREFIX)), "arrow exploded (tag removed)");
 			h.assertTrue(villager.getHealth() < health, "villager took explosion damage");
 			h.assertValueEqual(count(level, from, to, Blocks.GLASS), 49, "glass blocks intact");
+			h.assertTrue(!stand.isRemoved(), "armor stand survived");
+			h.assertTrue(!frame.isRemoved() && frame.getItem().is(Items.DIAMOND), "item frame and its item survived");
 			villager.discard();
+			stand.discard();
+			frame.discard();
 			owned(h, AbstractArrow.class, box, p).forEach(Entity::discard);
 			discardAll(h, ItemEntity.class, box);
 			clear(level, from, to);
@@ -611,6 +625,7 @@ public class EnchantaholicCustomGameTests {
 			breakRepeatedly(level, p, pos, Blocks.STONE, 50);
 			h.assertTrue(p.getMainHandItem().is(Items.IRON_PICKAXE), "no curse: the pickaxe stays in hand");
 
+			discardAll(h, ItemEntity.class, box);
 			ItemStack cursed = ench(h, Items.IRON_PICKAXE, CustomEnchants.BUTTERFINGERS, 25);
 			p.setItemInHand(InteractionHand.MAIN_HAND, cursed);
 			int breaks = 0;
@@ -620,6 +635,10 @@ public class EnchantaholicCustomGameTests {
 			}
 			h.assertTrue(p.getMainHandItem().isEmpty(), "block breaks: hand emptied within 100 breaks at 50 %");
 			assertDropped(h, box, cursed);
+			// the drop happens after vanilla used the tool: the last block still drops and costs durability
+			h.assertValueEqual(itemCount(h, box, Items.COBBLESTONE) + p.getInventory().countItem(Items.COBBLESTONE), breaks,
+					"every break dropped cobblestone, the one that dropped the pickaxe too");
+			h.assertValueEqual(cursed.getDamageValue(), breaks, "every break used durability");
 
 			ItemStack sword = ench(h, Items.IRON_SWORD, CustomEnchants.BUTTERFINGERS, 25);
 			p.setItemInHand(InteractionHand.MAIN_HAND, sword);
@@ -639,6 +658,101 @@ public class EnchantaholicCustomGameTests {
 		discardAll(h, ItemEntity.class, box);
 		cleanup(p);
 		h.succeed();
+	}
+
+	/**
+	 * Vein blocks are mined like the player mines: Silk Touch keeps ore blocks, Fortune multiplies diamonds, obsidian and
+	 * spawners break with their normal drops, creative breaks without drops or durability, unbreakable blocks are never collected.
+	 */
+	@GameTest
+	public void veinMinerDropsLikeThePlayer(GameTestHelper h) {
+		customsOn(h);
+		ServerLevel level = h.getLevel();
+		BlockPos base = sky(h, 110).offset(2, 0, 2);
+		BlockPos far = base.offset(2, 0, 2); // 3×1×3 = 9 blocks
+		ServerPlayer p = player(h, Vec3.atCenterOf(base).add(1, 4, 1), 0, 0);
+		AABB box = new AABB(base).inflate(8);
+		withModeOff(h, () -> {
+			fill(level, base, far, Blocks.DIAMOND_ORE.defaultBlockState());
+			ItemStack silk = ench(h, ench(h, Items.DIAMOND_PICKAXE, CustomEnchants.VEIN_MINER, 5), Enchantments.SILK_TOUCH, 1);
+			p.setItemInHand(InteractionHand.MAIN_HAND, silk);
+			p.gameMode.destroyBlock(base);
+			h.assertValueEqual(count(level, base, far, Blocks.DIAMOND_ORE), 0, "silk touch: whole vein mined");
+			h.assertValueEqual(itemCount(h, box, Items.DIAMOND_ORE), 9, "silk touch: 9 ore blocks dropped");
+			h.assertValueEqual(itemCount(h, box, Items.DIAMOND), 0, "silk touch: no diamonds");
+			h.assertValueEqual(silk.getDamageValue(), 9, "silk touch: 1 durability per block");
+			discardAll(h, ItemEntity.class, box);
+
+			fill(level, base, far, Blocks.DIAMOND_ORE.defaultBlockState());
+			p.setItemInHand(InteractionHand.MAIN_HAND, ench(h, ench(h, Items.DIAMOND_PICKAXE, CustomEnchants.VEIN_MINER, 5), Enchantments.FORTUNE, 100));
+			p.gameMode.destroyBlock(base);
+			int diamonds = itemCount(h, box, Items.DIAMOND);
+			h.assertTrue(diamonds > 9, "fortune 100: more than 1 diamond per ore, got " + diamonds);
+			h.assertValueEqual(itemCount(h, box, Items.DIAMOND_ORE), 0, "fortune: no ore blocks");
+			discardAll(h, ItemEntity.class, box);
+
+			fill(level, base, far, Blocks.OBSIDIAN.defaultBlockState());
+			p.setItemInHand(InteractionHand.MAIN_HAND, ench(h, Items.DIAMOND_PICKAXE, CustomEnchants.VEIN_MINER, 5));
+			p.gameMode.destroyBlock(base);
+			h.assertValueEqual(itemCount(h, box, Items.OBSIDIAN), 9, "obsidian: 9 dropped");
+			discardAll(h, ItemEntity.class, box);
+
+			fill(level, base, base.east(), Blocks.SPAWNER.defaultBlockState());
+			p.gameMode.destroyBlock(base);
+			h.assertValueEqual(count(level, base, base.east(), Blocks.SPAWNER), 0, "spawners mined");
+			h.assertValueEqual(itemCount(h, box, Items.SPAWNER), 0, "spawners drop no spawner item");
+			discardAll(h, ItemEntity.class, box);
+			discardAll(h, ExperienceOrb.class, box);
+
+			fill(level, base, far, Blocks.BEDROCK.defaultBlockState());
+			h.assertTrue(VeinMiner.collect(level, base, Blocks.BEDROCK, 8).isEmpty(), "bedrock is never collected");
+			fill(level, base, far, Blocks.STONE.defaultBlockState());
+			p.setGameMode(GameType.CREATIVE);
+			ItemStack creative = ench(h, Items.DIAMOND_PICKAXE, CustomEnchants.VEIN_MINER, 5);
+			p.setItemInHand(InteractionHand.MAIN_HAND, creative);
+			p.gameMode.destroyBlock(base);
+			h.assertValueEqual(count(level, base, far, Blocks.STONE), 0, "creative: whole vein mined");
+			h.assertValueEqual(itemCount(h, box, Items.COBBLESTONE), 0, "creative: no drops");
+			h.assertValueEqual(creative.getDamageValue(), 0, "creative: no durability");
+		});
+		clear(level, base, far);
+		discardAll(h, ItemEntity.class, box);
+		discardAll(h, ExperienceOrb.class, box);
+		cleanup(p);
+		h.succeed();
+	}
+
+	/** Bow L3: after the 31 arrows land, touching every one of them gives back at most the original arrow (survival and creative). */
+	@GameTest(maxTicks = 120)
+	public void barrageArrowsNoDupe(GameTestHelper h) {
+		customsOn(h);
+		ServerLevel level = h.getLevel();
+		BlockPos floor = sky(h, 140);
+		BlockPos from = floor.offset(-12, 0, -12);
+		BlockPos to = floor.offset(12, 0, 12);
+		fill(level, from, to, Blocks.GLASS.defaultBlockState());
+		ServerPlayer p = player(h, Vec3.atBottomCenterOf(floor.offset(1, 3, 1)), -45, 60);
+		ItemStack bow = ench(h, Items.BOW, CustomEnchants.BARRAGE, 3);
+		p.setItemInHand(InteractionHand.MAIN_HAND, bow);
+		p.getInventory().add(new ItemStack(Items.ARROW, 1));
+		Items.BOW.releaseUsing(bow, level, p, 72000 - 30);
+		AABB box = new AABB(floor).inflate(20);
+		h.assertValueEqual(owned(h, AbstractArrow.class, box, p).size(), 31, "arrows (1 + 30)");
+		h.runAfterDelay(40, () -> {
+			ServerPlayer creative = player(h, Vec3.atBottomCenterOf(floor.above()), 0, 0);
+			creative.setGameMode(GameType.CREATIVE);
+			for (AbstractArrow a : owned(h, AbstractArrow.class, box, p)) {
+				a.playerTouch(p); // first: the original (pickup ALLOWED) would go into any inventory
+				if (!a.isRemoved()) a.playerTouch(creative); // playerTouch does not check for a removed arrow
+			}
+			h.assertTrue(p.getInventory().countItem(Items.ARROW) <= 1, "survival: at most the original arrow, got " + p.getInventory().countItem(Items.ARROW));
+			h.assertValueEqual(creative.getInventory().countItem(Items.ARROW), 0, "creative: copies give no arrows");
+			owned(h, AbstractArrow.class, box, p).forEach(Entity::discard);
+			clear(level, from, to);
+			cleanup(creative);
+			cleanup(p);
+			h.succeed();
+		});
 	}
 
 	// ---------------------------------------------------------------- magnet

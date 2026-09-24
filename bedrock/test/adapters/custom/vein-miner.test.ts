@@ -1,13 +1,15 @@
 import type * as mc from "@minecraft/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { onCustomBreak, registerCustomBreak } from "../../../src/adapters/custom/break-dispatch";
+import { fumble } from "../../../src/adapters/custom/butterfingers";
 import { _jobs, startVein } from "../../../src/adapters/custom/vein-miner";
-import { COMPAT, makeBreakEvent, makePlayer } from "../../fakes/builders";
+import { asPlayer, COMPAT, makeBreakEvent, makePlayer } from "../../fakes/builders";
 import {
   GameMode,
   system,
   world,
   type FakeDurability,
+  type FakeItemEntityComponent,
   type FakeItemStack,
   type FakePlayer,
 } from "../../fakes/minecraft-server";
@@ -123,12 +125,12 @@ describe("vein miner", () => {
     expect(destroys()).toHaveLength(2);
   });
 
-  it("the tool breaks at max durability and the job stops", () => {
+  it("the tool breaks past max durability (max + 1 uses, like Bedrock) and the job stops", () => {
     fillCube(5);
     const { p, ev } = setup(pick(100, { max: 10, damage: 0 }));
     startVein(ev);
     system.advance(10);
-    expect(destroys()).toHaveLength(10);
+    expect(destroys()).toHaveLength(11);
     expect(p.container.peek(0)).toBeUndefined();
     expect(p.sounds.map((s) => s.soundId)).toContain("random.break");
     expect(_jobs()).toHaveLength(0);
@@ -230,5 +232,36 @@ describe("vein miner", () => {
       startVein(makeBreakEvent(p, STONE, { location: base, itemBefore: tool.clone(), itemAfter: tool.clone() }));
     }
     expect(_jobs()).toHaveLength(8);
+  });
+  it("butterfingers on the same break drops the tool exactly once and ends the job (no dupe)", () => {
+    fillCube(5);
+    const tool = withCustoms("minecraft:diamond_pickaxe", { vein_miner: 100, butterfingers: 1 }, {
+      enchantable: COMPAT.pickaxe,
+      durability: { max: 1561, damage: 0 },
+    });
+    const { p, ev } = setup(tool);
+    startVein(ev); // first batch: 32 blocks, tool written back with damage 32
+    expect(fumble(asPlayer(p), () => 0)).toBe(true); // then the dispatcher's butterfingers drops it
+    system.advance(10);
+    expect(destroys()).toHaveLength(32);
+    expect(_jobs()).toHaveLength(0);
+    expect(p.container.peek(0)).toBeUndefined();
+    const picks = overworld()
+      .getEntities({ type: "minecraft:item" })
+      .map((e) => (e.getComponent("minecraft:item") as FakeItemEntityComponent).itemStack)
+      .filter((i) => i.typeId === "minecraft:diamond_pickaxe");
+    expect(picks).toHaveLength(1);
+    expect((picks[0]?.getComponent("minecraft:durability") as FakeDurability).damage).toBe(32);
+  });
+
+  it("an item without durability (a stick) mines the vein and is never rewritten or duplicated", () => {
+    fillCube(3);
+    const stick = withCustoms("minecraft:stick", { vein_miner: 100 }, { amount: 5 });
+    const { p, ev } = setup(stick);
+    startVein(ev);
+    system.advance(5);
+    expect(destroys()).toHaveLength(26);
+    expect(p.container.peek(0)?.amount).toBe(5);
+    expect(p.container.writes.filter((w) => w.slot === 0)).toHaveLength(0);
   });
 });

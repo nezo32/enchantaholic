@@ -106,14 +106,14 @@ Items keep them, and they wake up again when you turn customs back on.
 | Enchantment | Works when | Effect at level L | Safety cap |
 |---|---|---|---|
 | Vein Miner | held, breaking a block | Also breaks up to 8×L connected blocks of the same type, with drops (and durability use) | 256 blocks |
-| Barrage | held, shooting/throwing (bows, crossbows, tridents, snowballs, eggs, wind charges) | Fires 10×L extra copies with random spread. Extra copies can't be picked up. | 64 per shot |
+| Barrage | held, shooting/throwing (bows, crossbows, snowballs, eggs, wind charges) | Fires 10×L extra copies with random spread. Extra copies can't be picked up. | 64 per shot |
 | Yeet | held, melee hit | Launches the target up and away. Higher levels launch harder. | Launch speed capped |
 | Kaboom | held, projectiles you fire | Projectiles explode on impact with power 1 + 0.5×L. No block damage, no fire. | Power 8 |
 | Party Popper | held, killing a mob | L fireworks + particles | 16 fireworks |
 | Chicken Rain | held, breaking a block | L×5 % chance to spawn a chicken | 100 %, 1 chicken per block |
 | Midas Touch | held, breaking a block | L×3 % chance to drop a gold nugget. From level 34 it can drop a gold ingot instead. | 100 % |
 | Magnet | held or worn | Pulls item drops and XP orbs within 3 + L blocks toward you | 24-block radius |
-| Moon Boots | worn (any armor slot) | Jump Boost L and no fall damage | Jump Boost 10 |
+| Moon Boots | worn (any armor slot) | Jump Boost L and no fall damage | Jump Boost 11 (amplifier 10) |
 | Curse of Butterfingers | held | L×2 % chance per hit or block break to drop the held item | 50 % |
 | Curse of Hiccups | anywhere in your inventory | Every ~10 s, L×3 % chance of an involuntary hop, with a *hic!* | 60 % |
 
@@ -127,9 +127,12 @@ There's no level cap, but every effect still respects its safety cap.
 
 **Known limits (Script API):**
 - Vein Miner drops come from `/setblock … destroy`, as if the block were broken with no tool: no Fortune or Silk Touch
-  (glass and ice drop nothing), no XP from ores, no break event for other add-ons, and it ignores claim/spawn protection.
-- Arrow pickup can't be disabled from script, so Barrage copies are removed on impact, or after 10 s if they hit nothing.
+  (glass and ice drop nothing), no tool-tier check (the extra blocks drop even when the tool couldn't harvest them),
+  no XP from ores, no break event for other add-ons, and it ignores claim/spawn protection.
+- Arrow pickup can't be disabled from script, so Barrage copies are removed on impact, or after 10 s if they hit nothing
+  (a copy saved in an unloading chunk is removed when it loads again). At most 1024 copies exist at once.
 - `applyImpulse` doesn't work on players: Yeet and Hiccups use knockback on players, and knockback resistance reduces Yeet.
+- Barrage can't copy tridents: thrown tridents aren't summonable from script. Kaboom still works on tridents.
 - Tridents are matched to the thrower through item-use snapshots; dispenser tridents are ignored.
 - Kaboom explosions can hurt the shooter and damage item entities, armor stands and item frames (never blocks).
 - Egg Barrage copies can hatch chickens (vanilla egg behaviour), bounded by the 64-copy cap.

@@ -28,10 +28,6 @@ export function trackKaboom(entity: Entity, power: number, owner?: Entity): void
   }
 }
 
-export function isKaboom(entityId: string): boolean {
-  return tracked.has(entityId);
-}
-
 export function forgetKaboom(entityId: string): void {
   tracked.delete(entityId);
 }

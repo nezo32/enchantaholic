@@ -116,7 +116,8 @@ function runBatch(job: VeinJob): void {
     if (!wear || unbreakingSkips(unbreaking, rng)) continue;
     damage += 1;
     changed = true;
-    if (damage >= max) {
+    // maxDurability is the damage the item can take before breaking (Bedrock: max + 1 uses).
+    if (damage > max) {
       toolBreaks(player, job.slot);
       job.finished = true;
       return;

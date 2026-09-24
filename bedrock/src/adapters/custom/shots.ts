@@ -82,10 +82,7 @@ export function registerShotSnapshots(): void {
   world.afterEvents.itemStopUse.subscribe(safe("shots:stop", (ev) => recordUse(ev.source, ev.itemStack, false)));
 }
 
-/** Test helpers. */
-export function _snapshots(): ReadonlyMap<string, Readonly<Snapshot>> {
-  return snapshots;
-}
+/** Test helper. */
 export function _resetShots(): void {
   snapshots.clear();
 }

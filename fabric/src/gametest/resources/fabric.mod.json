@@ -1,0 +1,19 @@
+{
+	"schemaVersion": 1,
+	"id": "enchantaholic-gametest",
+	"version": "1.0.0",
+	"name": "Enchantaholic GameTests",
+	"environment": "*",
+	"entrypoints": {
+		"fabric-gametest": [
+			"dev.enchantaholic.test.EnchantaholicGameTests",
+			"dev.enchantaholic.test.EnchantaholicEdgeGameTests"
+		],
+		"fabric-client-gametest": [
+			"dev.enchantaholic.test.EnchantaholicClientGameTest"
+		]
+	},
+	"depends": {
+		"enchantaholic": "*"
+	}
+}

@@ -1,0 +1,29 @@
+{
+	"schemaVersion": 1,
+	"id": "enchantaholic",
+	"version": "${version}",
+	"name": "Enchantaholic",
+	"description": "Break a block. Get enchanted. Never stop. Every block you break adds a random enchantment to a random item in your inventory.",
+	"authors": ["nezo"],
+	"contact": {
+		"homepage": "https://github.com/nezo32/enchantaholic",
+		"sources": "https://github.com/nezo32/enchantaholic",
+		"issues": "https://github.com/nezo32/enchantaholic/issues"
+	},
+	"license": "MIT",
+	"icon": "assets/enchantaholic/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": ["dev.enchantaholic.Enchantaholic"],
+		"client": ["dev.enchantaholic.client.EnchantaholicClient"]
+	},
+	"mixins": [
+		{ "config": "enchantaholic.client.mixins.json", "environment": "client" }
+	],
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"fabric-api": "*",
+		"minecraft": ">=26.2 <26.4-",
+		"java": ">=25"
+	}
+}

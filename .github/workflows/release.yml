@@ -1,0 +1,112 @@
+# Enchantaholic release: push tag vX.Y.Z[-pre] (on a commit of main) ->
+#   version -> build-mod || build-addon -> github-release -> curseforge-mod || curseforge-addon
+# Everything runs in ONE workflow run: releases created with GITHUB_TOKEN never trigger other workflows.
+# This repo calls the reusable workflows by local path. Other repos: copy .github/templates/release-caller.yml
+# (see docs/ci/REUSABLE_RELEASE_PIPELINE.md). Maintainer runbook: docs/ci/RELEASING.md.
+#
+# Repo config: secret CURSEFORGE_TOKEN; var CURSEFORGE_PROJECT_ID (empty = CurseForge skipped);
+# optional vars CURSEFORGE_GAME_VERSIONS, CURSEFORGE_BEDROCK_PROJECT_ID, CURSEFORGE_BEDROCK_API_BASE,
+# CURSEFORGE_BEDROCK_GAME_VERSIONS.
+name: Release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build, release and publish, e.g. v1.2.3
+        required: true
+      skip-curseforge:
+        description: Only (re)build and update the GitHub release; do not upload to CurseForge
+        type: boolean
+        default: false
+      curseforge-dry-run:
+        description: Resolve CurseForge versions and print the upload metadata without uploading
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    uses: ./.github/workflows/reusable-version.yml
+    with:
+      tag: ${{ inputs.tag }}
+      release-branch: main
+
+  build-mod:
+    needs: version
+    uses: ./.github/workflows/reusable-build-gradle.yml
+    with:
+      ref: ${{ needs.version.outputs.tag }}
+      working-directory: fabric
+      java-version: "25"
+      version: ${{ needs.version.outputs.version }}
+      artifact-name: fabric-mod
+      artifact-files: build/libs/enchantaholic-*.jar
+
+  build-addon:
+    needs: version
+    uses: ./.github/workflows/reusable-build-node.yml
+    with:
+      ref: ${{ needs.version.outputs.tag }}
+      working-directory: bedrock
+      check-command: npm run typecheck --if-present && npm run lint --if-present && npm test --if-present
+      build-command: npm run package
+      version: ${{ needs.version.outputs.version }}
+      artifact-name: bedrock-addon
+      artifact-files: dist/enchantaholic-*.mcaddon
+
+  github-release:
+    needs: [version, build-mod, build-addon]
+    permissions:
+      contents: write
+    uses: ./.github/workflows/reusable-github-release.yml
+    with:
+      tag: ${{ needs.version.outputs.tag }}
+      name: Enchantaholic ${{ needs.version.outputs.version }}
+      prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
+      artifact-pattern: "{fabric-mod,bedrock-addon}"
+
+  curseforge-mod:
+    needs: [version, github-release]
+    if: ${{ !inputs.skip-curseforge && vars.CURSEFORGE_PROJECT_ID != '' }}
+    uses: ./.github/workflows/reusable-publish-curseforge.yml
+    with:
+      project-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
+      artifact-pattern: fabric-mod
+      primary-file: "enchantaholic-!(*-sources).jar"
+      additional-files: "enchantaholic-*-sources.jar"
+      # When a 26.2.x / 26.3.x patch ships, add it to the repo var; no code change needed.
+      game-versions: ${{ vars.CURSEFORGE_GAME_VERSIONS || '26.2,26.3,Fabric,Java 25,Client,Server' }}
+      release-type: ${{ needs.version.outputs.release-type }}
+      display-name: Enchantaholic ${{ needs.version.outputs.version }} (Fabric)
+      relations: fabric-api:requiredDependency
+      tag: ${{ needs.version.outputs.tag }}
+      dry-run: ${{ inputs.curseforge-dry-run == true }}
+    secrets:
+      curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+
+  curseforge-addon:
+    needs: [version, github-release]
+    if: ${{ !inputs.skip-curseforge && vars.CURSEFORGE_BEDROCK_PROJECT_ID != '' }}
+    uses: ./.github/workflows/reusable-publish-curseforge.yml
+    with:
+      project-id: ${{ vars.CURSEFORGE_BEDROCK_PROJECT_ID }}
+      api-base: ${{ vars.CURSEFORGE_BEDROCK_API_BASE || 'https://minecraft-bedrock.curseforge.com' }}
+      artifact-pattern: bedrock-addon
+      primary-file: "enchantaholic-*.mcaddon"
+      game-versions: ${{ vars.CURSEFORGE_BEDROCK_GAME_VERSIONS || '26.50' }}
+      version-type-prefixes: ""
+      release-type: ${{ needs.version.outputs.release-type }}
+      display-name: Enchantaholic ${{ needs.version.outputs.version }} (Bedrock)
+      tag: ${{ needs.version.outputs.tag }}
+      dry-run: ${{ inputs.curseforge-dry-run == true }}
+    secrets:
+      curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}

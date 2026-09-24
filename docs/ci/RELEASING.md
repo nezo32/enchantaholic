@@ -131,7 +131,7 @@ gh label create bedrock        --color 5319e7 --description "Bedrock add-on"    
 
 ### Releasing from the Actions tab (no local git needed)
 
-Actions → **Release** → Run workflow, branch **main**, tag `vX.Y.Z`, tick **create-tag**. The workflow creates the tag on the tip of `main` and continues with build → GitHub release → CurseForge in the same run. Without create-tag the tag must already exist (that mode re-runs an existing release).
+Actions → **Release** → Run workflow, branch **main**, tag `vX.Y.Z`. If the tag does not exist yet, the workflow creates it on the tip of `main` and continues with build → GitHub release → CurseForge in the same run. If it already exists, the run rebuilds and re-publishes that release.
 
 ### Secrets and variables
 

@@ -105,20 +105,23 @@ Items keep them, and they wake up again when you turn customs back on.
 
 | Enchantment | Works when | Effect at level L | Safety cap |
 |---|---|---|---|
-| Vein Miner | held, breaking a block | Also breaks up to 8×L connected blocks of the same type, with drops (and durability use) | 256 blocks |
-| Barrage | held, shooting/throwing (bows, crossbows, snowballs, eggs, wind charges) | Fires 10×L extra copies with random spread. Extra copies can't be picked up. | 64 per shot |
+| Vein Miner | held, breaking a block | Also breaks up to 8×L connected blocks of the same type, with drops (and durability use) | 256 blocks, 32 per tick, 8 veins at once |
+| Barrage | held in either hand, shooting/throwing (bows, crossbows, snowballs, eggs, wind charges) | Fires 10×L extra copies with random spread. Extra copies can't be picked up. | 64 per shot |
 | Yeet | held, melee hit | Launches the target up and away. Higher levels launch harder. | Launch speed capped |
-| Kaboom | held, projectiles you fire | Projectiles explode on impact with power 1 + 0.5×L. No block damage, no fire. | Power 8 |
+| Kaboom | held, projectiles you fire | Projectiles explode on impact with power 1 + 0.5×L. No block damage, no fire. | Power 8, 16 explosions per tick |
 | Party Popper | held, killing a mob | L fireworks + particles | 16 fireworks |
-| Chicken Rain | held, breaking a block | L×5 % chance to spawn a chicken | 100 %, 1 chicken per block |
+| Chicken Rain | held, breaking a block | L×5 % chance to spawn a chicken | 100 %, 1 chicken per block, none when 32 are within 16 blocks |
 | Midas Touch | held, breaking a block | L×3 % chance to drop a gold nugget. From level 34 it can drop a gold ingot instead. | 100 % |
-| Magnet | held or worn | Pulls item drops and XP orbs within 3 + L blocks toward you | 24-block radius |
-| Moon Boots | worn (any armor slot) | Jump Boost L and no fall damage | Jump Boost 11 (amplifier 10) |
+| Magnet | held (either hand) or worn | Pulls item drops and XP orbs within 3 + L blocks toward you | 24-block radius, 64 entities per player per pulse |
+| Moon Boots | worn (any armor slot) | Jump Boost L and no fall damage | Jump Boost XI (amplifier 10) |
 | Curse of Butterfingers | held | L×2 % chance per hit or block break to drop the held item | 50 % |
 | Curse of Hiccups | anywhere in your inventory | Every ~10 s, L×3 % chance of an involuntary hop, with a *hic!* | 60 % |
 
 **Fair play:** blocks broken and mobs spawned by these effects never trigger new Enchantaholic rolls.
 Explosions never break blocks. Barrage copies can't be picked up, so there's no duping.
+
+The Java mod has the same enchantments with higher caps; see
+[the edition differences](../README.md#custom-enchantments-optional-off-by-default).
 
 Custom enchantments live in the item's lore as a blue `Vein Miner III` line (curses are red). On items that stack
 (dirt, sticks…) the lore is the only record; on other items the level is also stored in the item dynamic property
@@ -179,6 +182,8 @@ Layout:
 |---|---|
 | `src/core/` | Pure logic: slot and enchantment selection, level math, lore and Roman numerals, bonus formulas. Must not import `@minecraft/*` (ESLint and a test enforce this) |
 | `src/adapters/` | Code that calls the game: events, inventory, enchanting, the commands, per-player notification settings, bonus effects |
+| `src/core/custom/` | Pure custom-enchantment logic (v0.3.0): the roster of 11 ids and names (`roster.ts`), caps and tuning constants (`tuning.ts`), per-level formulas (`math.ts`), level helpers (`levels.ts`) and the Vein Miner walk and deny list (`vein.ts`) |
+| `src/adapters/custom/` | Custom-enchantment effects: the switch gate (`gate.ts`), break/hit/projectile dispatchers, one file per enchantment, Barrage copy tracking (`copies.ts`) and launcher snapshots for thrown tridents (`shots.ts`) |
 | `src/main.ts` | Entry point |
 | `pack/` | `manifest.json`, `pack_icon.png`, `texts/` |
 | `test/` | vitest suites and the `@minecraft/server` fake |
@@ -213,3 +218,7 @@ as an operator. Use a `DEBUG=1` build.
     actionbar but keeps the sound, `sound off` silences the chime but keeps the message, and with both off mining still
     enchants silently. The settings survive leaving and rejoining the world, and another player's settings are
     unaffected. A command block running `/enchantaholic:notify status` is refused.
+15. Custom enchantments: `/enchantaholic:custom status` shows OFF in a new world. After `on`, rolls can add a blue
+    `Vein Miner I`-style lore line (red for the curses), also on dirt or sticks. Vein Miner, Barrage copies (removed on
+    impact), Kaboom (no block damage), Magnet, Moon Boots (no fall damage) and Party Popper work. After `off`, nothing
+    new rolls and every custom effect stops, and the lore lines stay.

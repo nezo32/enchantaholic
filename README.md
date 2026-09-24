@@ -21,7 +21,8 @@ When the mode is on, each block a player breaks does the following:
 1. **Skipped cases:** players in Creative or Spectator, and blocks that break instantly (hardness 0: grass, flowers,
    torches and so on).
 2. **Item:** one random non-empty slot, from the main inventory (hotbar included), the armor slots and the offhand.
-3. **Enchantment:** a random enchantment from the whole registry, curses included. `Lunge` is only ever given to
+3. **Enchantment:** a random enchantment from the whole registry, curses included (plus Enchantaholic's own when
+   [custom enchantments](#custom-enchantments-optional-off-by-default) are on). `Lunge` is only ever given to
    spears. If no enchantment fits the chosen item, another item is picked, and if none is left nothing happens.
 4. **Level:** if the item already has that enchantment, its level goes up by 1. Otherwise the enchantment is added at
    level I.
@@ -41,6 +42,7 @@ Difficulty and hardcore settings are never changed. Levels beyond X are shown as
 | Enchantment/item pairs | Any enchantment on any item (compatibility is not checked) | Only pairs Bedrock accepts: an incompatible pick is rerolled (another enchantment or another item) |
 | Level cap | 255 (Java's hard limit) | No cap on the tracked level. The **real** enchantment stops at the vanilla max, and the true level is kept in a lore line and a dynamic property on the item |
 | Levels above the vanilla max | Real enchantment levels, so vanilla formulas apply at every level (see [Known quirks](#known-quirks-java)) | Extra bonus effects only for Sharpness, Smite, Bane of Arthropods, Power, the Protection family (Protection, Fire/Blast/Projectile Protection, Feather Falling) and Efficiency. Other enchantments show the level only |
+| Custom enchantments (off by default) | **Custom Enchantments** ON/OFF button on the Create World → Game tab, or `/enchantaholic custom [on\|off\|status]` (operators). Real enchantments, up to level 255 | `/enchantaholic:custom <on\|off\|status>` (operators, works with cheats off). Stored in lore, no level cap. Lower safety caps (see [Custom enchantments](#custom-enchantments-optional-off-by-default)) |
 | Achievements | Unaffected | Disabled in the world, because Minecraft disables them for any behavior pack |
 | Notification settings (per player) | Mod Menu → Enchantaholic → config screen, or the client command `/enchantaholic-notify <sound\|message\|status> [on\|off]` (needs the mod on the client; saved in `config/enchantaholic.json`) | `/enchantaholic:notify <sound\|message\|status> [on\|off]`, any player, works with cheats off |
 
@@ -57,6 +59,54 @@ Every enchant shows an actionbar message and plays a quiet chime. Each player ca
   `/enchantaholic:notify status`. No operator rights or cheats are needed, and the settings are saved with your
   player in that world.
 
+## Custom enchantments (optional, off by default)
+
+Want more chaos? Enchantaholic ships 11 enchantments of its own, including two curses. They're **off by default**.
+Turn them on and they join the random rolls alongside vanilla enchantments, and they can land on **any** item.
+Yes, a stick with Barrage. Levels stack past I just like everything else in Enchantaholic.
+
+**Turning them on** (saved per world)
+- **Java:** Create World → *Game* tab → **Custom Enchantments: ON** (under *Enchantaholic Mode*), or as an operator:
+  `/enchantaholic custom on|off|status` (plain `/enchantaholic custom` shows the status).
+- **Bedrock:** as an operator: `/enchantaholic:custom on|off|status` (works with cheats off).
+
+Enchantaholic Mode has to be on too, because custom enchantments arrive through the same block-break rolls.
+If you turn customs off, nothing new gets rolled and existing custom enchantments go dormant (they do nothing).
+Items keep them, and they wake up again when you turn customs back on.
+
+"Held" means the main hand, except for Barrage and Kaboom, which read the bow, crossbow, trident or thrown item
+itself (in either hand), and Magnet, which also works from the off hand.
+
+| Enchantment | Works when | Effect at level L | Safety cap |
+|---|---|---|---|
+| Vein Miner | held, breaking a block | Also breaks up to 8×L connected blocks (diagonals count) of the same type, using durability | Java 1024 blocks (64 per tick), Bedrock 256 (32 per tick) |
+| Barrage | shooting or throwing | Fires 10×L extra copies with random spread. Copies can't be picked up | Java 512 per shot, Bedrock 64 per shot |
+| Yeet | held, melee hit | Launches the target up and away, harder at higher levels | Launch speed capped |
+| Kaboom | projectiles you fire | Explode on impact with power 1 + 0.5×L. No block damage, no fire | Power 8 |
+| Party Popper | held, killing a mob | L harmless fireworks plus confetti | 16 fireworks |
+| Chicken Rain | held, breaking a block | 5×L % chance to spawn a chicken (sometimes a baby) | 100 %, 1 chicken per block |
+| Midas Touch | held, breaking a block | 3×L % chance to drop a gold nugget. From level 34, some of those drops are gold ingots | 100 % |
+| Magnet | held or worn | Pulls item drops and XP orbs within 3 + L blocks toward you, every half second | 24-block radius |
+| Moon Boots | worn (any armor slot) | Jump Boost L and no fall damage | Jump Boost XI |
+| Curse of Butterfingers | held | 2×L % chance per hit or block break to drop the held item | 50 % |
+| Curse of Hiccups | anywhere in your inventory | Every 10 s, 3×L % chance of an involuntary hop, with a *hic!* | 60 % |
+
+**Fair play:** blocks broken and mobs spawned by these effects never trigger new Enchantaholic rolls.
+Explosions never break blocks (but they can hurt you). Barrage copies can't be picked up, so there's no duping.
+Ender pearls and bottles o' enchanting are never copied.
+
+**Edition differences**
+
+| | Java | Bedrock |
+|---|---|---|
+| Where the level lives | Real enchantments (`enchantaholic:vein_miner` …), shown in tooltips like any other and compatible with description mods such as Enchantment Descriptions. Not on enchanting tables, in loot or from villagers, only through Enchantaholic rolls (or `/enchant`). Up to level 255 | A blue lore line such as `Vein Miner III` (curses are red), plus an item dynamic property on non-stacking items. No level cap, but every effect keeps its safety cap |
+| Vein Miner drops | Normal survival breaking: Fortune, Silk Touch and tool tier apply | Broken as if by hand: no Fortune or Silk Touch (glass and ice drop nothing), no tool-tier check, no ore XP. At most 8 veins at once |
+| Barrage | Bows, crossbows, tridents, snowballs, eggs, wind charges, splash and lingering potions. Trident copies lose Loyalty | Bows, crossbows, snowballs, eggs, wind charges (no tridents: the game won't let a script spawn them). Copies are removed on impact or after 10 s; at most 1024 exist at once |
+| Kaboom | Explosions spare item drops, XP orbs and projectiles. At most 64 explosions per tick and 20 ms of explosion work per tick; later impacts that tick fizzle | At most 16 explosions per tick. The projectile is removed after exploding (a real trident is kept). Explosions can damage item drops, armor stands and item frames |
+| Magnet | At most 256 entities pulled per player per pulse | At most 64 entities per player per pulse |
+| Chicken Rain | No extra limit | No chicken when 32 are already within 16 blocks |
+| Yeet, Hiccups on players | Launch speed set directly | Uses knockback, so knockback resistance weakens Yeet |
+
 ## Install
 
 ### Java Edition
@@ -70,6 +120,8 @@ Every enchant shows an actionbar message and plays a quiet chime. Each player ca
    - **Existing world or dedicated server:** an operator runs `/enchantaholic on` (`/enchantaholic status` shows the
      current state). It is off by default. In single-player this needs cheats: Allow Commands on, or Open to LAN with
      Allow Cheats on.
+4. Optional: turn on [custom enchantments](#custom-enchantments-optional-off-by-default) with the **Custom
+   Enchantments** button or `/enchantaholic custom on`.
 
 **Upgrading from 0.1.0:** 0.1.0 used a game rule (`enchantaholic:enchantaholic`) instead. Worlds that had it on are
 switched ON automatically the first time they load with 0.2.0. That first load logs one harmless
@@ -81,7 +133,8 @@ dropped on the next save.
 1. Download `enchantaholic-<version>.mcaddon` from [GitHub releases](https://github.com/nezo32/enchantaholic/releases)
    or CurseForge, then open it to import it into Minecraft.
 2. Create a world and activate **Enchantaholic** under **Behavior Packs**.
-3. Optional: operators can use `/enchantaholic:toggle off` / `on` / `status`.
+3. Optional: operators can use `/enchantaholic:toggle off` / `on` / `status`, and turn on
+   [custom enchantments](#custom-enchantments-optional-off-by-default) with `/enchantaholic:custom on`.
 
 Details and limitations: [bedrock/README.md](bedrock/README.md).
 

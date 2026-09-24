@@ -65,6 +65,21 @@ public class EnchantaholicModeGameTests {
 		helper.succeed();
 	}
 
+	/** 0.2.0 dropped the game rule: /gamerule must not know it any more (the command replaces it). */
+	@GameTest
+	public void legacyGameRuleIsGone(GameTestHelper helper) {
+		CommandSourceStack op = helper.getLevel().getServer().createCommandSourceStack();
+		for (String cmd : new String[] {"gamerule enchantaholic:enchantaholic", "gamerule enchantaholic:enchantaholic true"}) {
+			try {
+				run(helper, op, cmd);
+				helper.fail("/" + cmd + " still works");
+			} catch (CommandSyntaxException expected) {
+				// unknown game rule
+			}
+		}
+		helper.succeed();
+	}
+
 	@GameTest
 	public void legacyGameRuleIsRead(GameTestHelper helper) throws Exception {
 		Path dir = Files.createTempDirectory("enchantaholic-legacy");

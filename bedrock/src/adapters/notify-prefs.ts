@@ -1,19 +1,11 @@
 import type { Entity } from "@minecraft/server";
 import { system, world } from "@minecraft/server";
 import { PROP_NOTIFY } from "../core/config";
-import {
-  DEFAULT_NOTIFY,
-  encodeNotifyPrefs,
-  parseNotifyPrefs,
-  type NotifyPrefs,
-} from "../core/notify";
+import { DEFAULT_NOTIFY, encodeNotifyPrefs, parseNotifyPrefs, type NotifyPrefs } from "../core/notify";
 import { safe, warnOnce } from "./log";
 
 /** Anything with a stable id and dynamic properties (Player / Entity; FakePlayer in tests). */
-export type PrefsHolder = Pick<
-  Entity,
-  "id" | "getDynamicProperty" | "setDynamicProperty"
->;
+export type PrefsHolder = Pick<Entity, "id" | "getDynamicProperty" | "setDynamicProperty">;
 
 /** In-memory source of truth per entity id; writes to the property are deferred to system.run. */
 const cache = new Map<string, NotifyPrefs>();

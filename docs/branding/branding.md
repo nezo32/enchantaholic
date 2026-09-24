@@ -5,7 +5,7 @@ Alt: *Sharpness VI is just the beginning.*
 
 ## CurseForge description
 
-> **Enchantaholic** turns every swing into a lottery. Each block you break adds a **random enchantment to a random item in your inventory**, and levels **keep stacking past vanilla caps**: Sharpness VI, Efficiency XII, Protection XXX. Dig a tunnel and you come out with a god-tier sword and a pair of boots you can't explain. The mode is a toggle on the world-creation screen, saved with the world, and operators can flip it any time with `/enchantaholic on|off`, so you can switch it on in any world. There's a **Fabric mod for Java 26.2–26.3** and a **Bedrock behavior pack** (26.50+; activate the pack, toggle with `/enchantaholic:toggle`).
+> **Enchantaholic** turns every swing into a lottery. Each block you break adds a **random enchantment to a random item in your inventory**, and levels **keep stacking past vanilla caps**: Sharpness VI, Efficiency XII, Protection XXX. Dig a tunnel and you come out with a god-tier sword and a pair of boots you can't explain. The mode is a toggle on the world-creation screen, saved with the world, and operators can flip it any time with `/enchantaholic on|off`, so you can switch it on in any world. Each player can mute the enchant sound, the actionbar message, or both. There's a **Fabric mod for Java 26.2–26.3** and a **Bedrock behavior pack** (26.50+; activate the pack, toggle with `/enchantaholic:toggle`).
 
 ## Features
 - ⛏️ **Every block counts:** each break enchants a random item in your inventory.
@@ -13,6 +13,7 @@ Alt: *Sharpness VI is just the beginning.*
 - 🎲 **Fully random:** any item, any enchantment (Bedrock only rolls pairs the game accepts). The chaos is the point.
 - ⚙️ **Toggle anywhere:** an ON/OFF button at world creation plus an operator command (`/enchantaholic`) for existing worlds and servers (Java); an operator command on Bedrock.
 - 💬 **Clear feedback:** an actionbar message shows what just got enchanted.
+- 🔕 **Your call on noise:** turn the enchant sound, the actionbar message, or both off (Mod Menu or /enchantaholic-notify on Java; /enchantaholic:notify on Bedrock).
 - 🔢 **Readable numerals:** tooltips show proper Roman numerals up to 255, not `enchantment.level.11`.
 - 🧱 **Java + Bedrock:** a Fabric mod (26.2–26.3) and a Bedrock behavior pack.
 
@@ -45,6 +46,13 @@ In-game text: use `§d` (light purple) for the ✦ and the item name, and `§b` 
 | `enchantaholic.command.status.on` | Enchantaholic Mode is ON in this world |
 | `enchantaholic.command.status.off` | Enchantaholic Mode is OFF in this world |
 | `enchantaholic.message.enchanted` | `✦ %1$s → %2$s` |
+| `enchantaholic.settings.title` | Enchantaholic Settings |
+| `enchantaholic.settings.notifySound` | Enchant sound |
+| `enchantaholic.settings.notifySound.tooltip` | Play a quiet chime when one of your items gets enchanted. |
+| `enchantaholic.settings.notifyMessage` | Enchant message |
+| `enchantaholic.settings.notifyMessage.tooltip` | Show the actionbar message (✦ item → enchantment) when one of your items gets enchanted. |
+| `enchantaholic.command.notify.sound` | Enchant sound: %s |
+| `enchantaholic.command.notify.message` | Enchant message: %s |
 
 **Enchant message:** show it on the **actionbar** (`player.displayClientMessage(msg, true)`) so fast mining doesn't flood chat. Example: `✦ Diamond Pickaxe → Efficiency VI`.
 - `%1$s` = the item's hover name (`stack.getHoverName()`), styled light purple.
@@ -60,3 +68,4 @@ Vanilla only translates `enchantment.level.1` through `enchantment.level.10`. Fr
 - `texts/languages.json`: `["en_US"]`
 - `pack_icon.png` (256×256, opaque) goes in the pack root.
 - Bedrock can't add custom game rules. The pack uses a Script API custom command, `/enchantaholic:toggle [on|off|status]` (operators, works with cheats off), stores the state in the world dynamic property `enchantaholic:enabled`, and reuses the "Enchantaholic Mode" name in its messages.
+- Notifications: `/enchantaholic:notify <sound|message|status> [on|off]` lets any player (no operator rights, works with cheats off) turn their enchant sound or actionbar message off or on. The choice is stored per player in the player dynamic property `enchantaholic:notify` (JSON `{"sound":true,"message":true}`; missing means both on).

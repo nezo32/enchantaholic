@@ -67,7 +67,14 @@ class LangFileTest {
 				"enchantaholic.command.status.off",
 				"enchantaholic.createWorld.toggle",
 				"enchantaholic.createWorld.toggle.tooltip",
-				"enchantaholic.message.enchanted"}) {
+				"enchantaholic.message.enchanted",
+				"enchantaholic.settings.title",
+				"enchantaholic.settings.notifySound",
+				"enchantaholic.settings.notifySound.tooltip",
+				"enchantaholic.settings.notifyMessage",
+				"enchantaholic.settings.notifyMessage.tooltip",
+				"enchantaholic.command.notify.sound",
+				"enchantaholic.command.notify.message"}) {
 			assertTrue(lang.has(key), "missing " + key);
 			assertFalse(lang.get(key).getAsString().isBlank(), "blank " + key);
 		}

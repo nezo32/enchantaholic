@@ -8,16 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { build } from "esbuild";
-import {
-  afterAll,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-  type MockInstance,
-} from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import { esbuildOptions } from "../../scripts/lib/esbuild-options.mjs";
 import { ENTRY } from "../../scripts/lib/paths.mjs";
 import {
@@ -56,13 +47,7 @@ const PROP_LEVELS = "enchantaholic:levels";
 const LORE_TAG = "§e§h§r";
 const COMMAND = "enchantaholic:toggle";
 const NOTIFY = "enchantaholic:notify";
-const EQUIP = [
-  EquipmentSlot.Head,
-  EquipmentSlot.Chest,
-  EquipmentSlot.Legs,
-  EquipmentSlot.Feet,
-  EquipmentSlot.Offhand,
-];
+const EQUIP = [EquipmentSlot.Head, EquipmentSlot.Chest, EquipmentSlot.Legs, EquipmentSlot.Feet, EquipmentSlot.Offhand];
 
 let tmpDir: string;
 let registry: FakeCustomCommandRegistry;
@@ -83,20 +68,10 @@ interface SlotState {
 
 function storedLevels(item: FakeItemStack): Record<string, number> {
   const raw = item.isStackable ? undefined : item.props.get(PROP_LEVELS);
-  return typeof raw === "string"
-    ? (JSON.parse(raw) as Record<string, number>)
-    : {};
+  return typeof raw === "string" ? (JSON.parse(raw) as Record<string, number>) : {};
 }
 
-const ROMAN: Record<string, number> = {
-  I: 1,
-  V: 5,
-  X: 10,
-  L: 50,
-  C: 100,
-  D: 500,
-  M: 1000,
-};
+const ROMAN: Record<string, number> = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
 function roman(s: string): number {
   if (/^\d+$/.test(s)) return Number(s);
   let n = 0;
@@ -134,67 +109,39 @@ function state(item: FakeItemStack | undefined): SlotState | undefined {
     const max = VANILLA_ENCHANT_MAX[id] as number;
     trueLevels[id] = v >= max ? Math.max(v, stored[id] ?? 0) : v;
   }
-  const prop = item.isStackable
-    ? undefined
-    : (item.props.get(PROP_LEVELS) as string | undefined);
-  return {
-    typeId: item.typeId,
-    amount: item.amount,
-    nameTag: item.nameTag,
-    vanilla,
-    trueLevels,
-    lore: [...item.lore],
-    prop,
-  };
+  const prop = item.isStackable ? undefined : (item.props.get(PROP_LEVELS) as string | undefined);
+  return { typeId: item.typeId, amount: item.amount, nameTag: item.nameTag, vanilla, trueLevels, lore: [...item.lore], prop };
 }
 
 function snapshot(p: FakePlayer): Map<string, SlotState | undefined> {
   const out = new Map<string, SlotState | undefined>();
-  for (let i = 0; i < p.container.size; i++)
-    out.set(`inv:${i}`, state(p.container.peek(i)));
+  for (let i = 0; i < p.container.size; i++) out.set(`inv:${i}`, state(p.container.peek(i)));
   for (const s of EQUIP) out.set(`equip:${s}`, state(p.equippable.peek(s)));
   return out;
 }
 
-function changedSlots(
-  a: Map<string, SlotState | undefined>,
-  b: Map<string, SlotState | undefined>,
-): string[] {
-  return [...a.keys()].filter(
-    (k) => JSON.stringify(a.get(k)) !== JSON.stringify(b.get(k)),
-  );
+function changedSlots(a: Map<string, SlotState | undefined>, b: Map<string, SlotState | undefined>): string[] {
+  return [...a.keys()].filter((k) => JSON.stringify(a.get(k)) !== JSON.stringify(b.get(k)));
 }
 
 /** Checks the per-item invariants that must hold after every event. */
 function assertItemInvariants(slot: string, s: SlotState): void {
   for (const [id, v] of Object.entries(s.vanilla)) {
-    expect(v, `${slot} ${id} vanilla`).toBeLessThanOrEqual(
-      VANILLA_ENCHANT_MAX[id] as number,
-    );
+    expect(v, `${slot} ${id} vanilla`).toBeLessThanOrEqual(VANILLA_ENCHANT_MAX[id] as number);
     expect(v, `${slot} ${id} vanilla`).toBeGreaterThanOrEqual(1);
   }
-  if (!/_spear$/.test(s.typeId))
-    expect(s.vanilla["minecraft:lunge"], `${slot} lunge`).toBeUndefined();
+  if (!/_spear$/.test(s.typeId)) expect(s.vanilla["minecraft:lunge"], `${slot} lunge`).toBeUndefined();
   expect(s.lore.length, `${slot} lore lines`).toBeLessThanOrEqual(20);
-  for (const line of s.lore)
-    expect(line.length, `${slot} lore line`).toBeLessThanOrEqual(50);
+  for (const line of s.lore) expect(line.length, `${slot} lore line`).toBeLessThanOrEqual(50);
   // Managed lore lines appear only for overcapped enchants, and match the dynprop on non-stackables.
   const managed = s.lore.filter((l) => l.startsWith(LORE_TAG)).length;
-  const over = Object.entries(s.trueLevels).filter(
-    ([id, t]) => t > (VANILLA_ENCHANT_MAX[id] as number),
-  ).length;
+  const over = Object.entries(s.trueLevels).filter(([id, t]) => t > (VANILLA_ENCHANT_MAX[id] as number)).length;
   const userLines = s.lore.length - managed;
   expect(managed, `${slot} managed lore`).toBe(Math.min(over, 20 - userLines));
   if (s.prop !== undefined) {
-    for (const [id, lvl] of Object.entries(
-      JSON.parse(s.prop) as Record<string, number>,
-    )) {
-      expect(lvl, `${slot} ${id} stored`).toBeGreaterThan(
-        VANILLA_ENCHANT_MAX[id] as number,
-      );
-      expect(s.vanilla[id], `${slot} ${id} stored only at max`).toBe(
-        VANILLA_ENCHANT_MAX[id],
-      );
+    for (const [id, lvl] of Object.entries(JSON.parse(s.prop) as Record<string, number>)) {
+      expect(lvl, `${slot} ${id} stored`).toBeGreaterThan(VANILLA_ENCHANT_MAX[id] as number);
+      expect(s.vanilla[id], `${slot} ${id} stored only at max`).toBe(VANILLA_ENCHANT_MAX[id]);
     }
   }
 }
@@ -218,16 +165,8 @@ function breakAndDiff(p: FakePlayer, block = "minecraft:stone"): string[] {
     expect(b.amount).toBe(a.amount);
     expect(b.nameTag).toBe(a.nameTag);
     // Exactly one enchant gained exactly one true level; nothing else moved.
-    const ids = new Set([
-      ...Object.keys(a.trueLevels),
-      ...Object.keys(b.trueLevels),
-    ]);
-    const deltas = [...ids]
-      .map(
-        (id) =>
-          [id, (b.trueLevels[id] ?? 0) - (a.trueLevels[id] ?? 0)] as const,
-      )
-      .filter(([, d]) => d !== 0);
+    const ids = new Set([...Object.keys(a.trueLevels), ...Object.keys(b.trueLevels)]);
+    const deltas = [...ids].map((id) => [id, (b.trueLevels[id] ?? 0) - (a.trueLevels[id] ?? 0)] as const).filter(([, d]) => d !== 0);
     expect(deltas, `${slot} deltas`).toHaveLength(1);
     expect(deltas[0]?.[1]).toBe(1);
     expect(p.onScreenDisplay.actionBars.length).toBe(bars + 1);
@@ -247,28 +186,16 @@ function fullInventoryPlayer(): FakePlayer {
       4: enchantedBook(),
       5: makeItem("minecraft:book", { amount: 12 }), // plain book stack, no minecraft:enchantable
       17: dirt(32),
-      35: makeItem("minecraft:bow", {
-        enchantable: COMPAT.bow,
-        nameTag: "Longshot",
-      }),
+      35: makeItem("minecraft:bow", { enchantable: COMPAT.bow, nameTag: "Longshot" }),
     },
-    equip: {
-      Head: helmet(),
-      Chest: chestplate(),
-      Legs: leggings(),
-      Feet: boots(),
-      Offhand: shield(),
-    },
+    equip: { Head: helmet(), Chest: chestplate(), Legs: leggings(), Feet: boots(), Offhand: shield() },
   });
   world.players.push(p);
   return p;
 }
 
 function runCommand(...args: unknown[]): { status: number; message?: string } {
-  const r = registry.invoke(COMMAND, { sourceType: "Entity" }, ...args) as {
-    status: number;
-    message?: string;
-  };
+  const r = registry.invoke(COMMAND, { sourceType: "Entity" }, ...args) as { status: number; message?: string };
   system.flushRuns();
   return r;
 }
@@ -279,12 +206,7 @@ beforeAll(async () => {
   resetFakes();
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "enchantaholic-bundle-"));
   const outfile = path.join(tmpDir, "main.js");
-  await build({
-    ...esbuildOptions({ full: "9.9.9-it" }, false),
-    entryPoints: [ENTRY],
-    outfile,
-    logLevel: "silent",
-  });
+  await build({ ...esbuildOptions({ full: "9.9.9-it" }, false), entryPoints: [ENTRY], outfile, logLevel: "silent" });
 
   warn = vi.spyOn(console, "warn");
   const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
@@ -331,9 +253,7 @@ describe("bundled main.js in a simulated runtime", () => {
     const cmd = registry.commands.get(COMMAND)?.command;
     expect(cmd?.cheatsRequired).toBe(false);
     expect(cmd?.permissionLevel).toBe(1); // GameDirectors
-    expect(cmd?.optionalParameters?.[0]?.name).toBe(
-      [...registry.enums.keys()][0],
-    );
+    expect(cmd?.optionalParameters?.[0]?.name).toBe([...registry.enums.keys()][0]);
   });
 
   it("survival: 100 stone breaks with a full diverse inventory change exactly one slot by +1 each", () => {
@@ -345,8 +265,7 @@ describe("bundled main.js in a simulated runtime", () => {
       hits.set(changed[0] as string, (hits.get(changed[0] as string) ?? 0) + 1);
     }
     // Non-enchantable stacks never change; enchantables are spread over (uniform slot choice).
-    for (const s of ["inv:2", "inv:5", "inv:17"])
-      expect(hits.has(s), s).toBe(false);
+    for (const s of ["inv:2", "inv:5", "inv:17"]) expect(hits.has(s), s).toBe(false);
     expect(hits.size).toBeGreaterThanOrEqual(8);
     expect(p.container.peek(2)?.amount).toBe(64);
     expect(p.container.peek(5)?.amount).toBe(12);
@@ -354,27 +273,21 @@ describe("bundled main.js in a simulated runtime", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it.each([
-    "minecraft:short_grass",
-    "minecraft:poppy",
-    "minecraft:torch",
-    "minecraft:tnt",
-    "minecraft:slime",
-  ])("breaking %s changes nothing", (block) => {
-    const p = fullInventoryPlayer();
-    for (let i = 0; i < 10; i++) expect(breakAndDiff(p, block)).toEqual([]);
-    expect(p.onScreenDisplay.actionBars).toHaveLength(0);
-    expect(p.sounds).toHaveLength(0);
-  });
-
-  it.each([GameMode.Creative, GameMode.Spectator])(
-    "%s: nothing changes",
-    (mode) => {
+  it.each(["minecraft:short_grass", "minecraft:poppy", "minecraft:torch", "minecraft:tnt", "minecraft:slime"])(
+    "breaking %s changes nothing",
+    (block) => {
       const p = fullInventoryPlayer();
-      p.gameMode = mode;
-      for (let i = 0; i < 10; i++) expect(breakAndDiff(p)).toEqual([]);
+      for (let i = 0; i < 10; i++) expect(breakAndDiff(p, block)).toEqual([]);
+      expect(p.onScreenDisplay.actionBars).toHaveLength(0);
+      expect(p.sounds).toHaveLength(0);
     },
   );
+
+  it.each([GameMode.Creative, GameMode.Spectator])("%s: nothing changes", (mode) => {
+    const p = fullInventoryPlayer();
+    p.gameMode = mode;
+    for (let i = 0; i < 10; i++) expect(breakAndDiff(p)).toEqual([]);
+  });
 
   it("adventure mode enchants like survival", () => {
     const p = fullInventoryPlayer();
@@ -390,63 +303,34 @@ describe("bundled main.js in a simulated runtime", () => {
     expect(total).toBe(600);
     expect(Object.values(s.trueLevels).some((t) => t > 5)).toBe(true);
     // Only one of sharpness/smite/bane (vanilla conflicts) ever got onto the sword.
-    const dmg = [
-      "minecraft:sharpness",
-      "minecraft:smite",
-      "minecraft:bane_of_arthropods",
-    ].filter((id) => s.vanilla[id]);
+    const dmg = ["minecraft:sharpness", "minecraft:smite", "minecraft:bane_of_arthropods"].filter((id) => s.vanilla[id]);
     expect(dmg).toHaveLength(1);
     expect(warn).not.toHaveBeenCalled();
   });
 
   it("stored levels survive a lost dynamic property (lore fallback) and user lore is preserved", () => {
-    const p = makePlayer({
-      inv: {
-        0: makeItem("minecraft:diamond_sword", {
-          enchantable: { compatible: ["sharpness"] },
-          lore: ["§7Heirloom"],
-        }),
-      },
-    });
+    const p = makePlayer({ inv: { 0: makeItem("minecraft:diamond_sword", { enchantable: { compatible: ["sharpness"] }, lore: ["§7Heirloom"] }) } });
     for (let i = 0; i < 8; i++) breakAndDiff(p); // Sharpness true VIII
     const item = p.container.peek(0) as FakeItemStack;
     expect(storedLevels(item)).toEqual({ "minecraft:sharpness": 8 });
     item.props.delete(PROP_LEVELS);
     breakAndDiff(p);
-    expect(storedLevels(p.container.peek(0) as FakeItemStack)).toEqual({
-      "minecraft:sharpness": 9,
-    });
+    expect(storedLevels(p.container.peek(0) as FakeItemStack)).toEqual({ "minecraft:sharpness": 9 });
     expect(p.container.peek(0)?.lore[0]).toBe("§7Heirloom");
     expect(p.container.peek(0)?.lore[1]).toBe(`${LORE_TAG}§dSharpness IX`);
   });
 
   it("an item with 20 user lore lines still stacks (dynprop only) without warnings", () => {
     const lore = Array.from({ length: 20 }, (_, i) => `line ${i}`);
-    const p = makePlayer({
-      inv: {
-        0: makeItem("minecraft:diamond_sword", {
-          enchantable: { compatible: ["sharpness"] },
-          lore,
-        }),
-      },
-    });
+    const p = makePlayer({ inv: { 0: makeItem("minecraft:diamond_sword", { enchantable: { compatible: ["sharpness"] }, lore }) } });
     for (let i = 0; i < 7; i++) breakAndDiff(p);
-    expect(storedLevels(p.container.peek(0) as FakeItemStack)).toEqual({
-      "minecraft:sharpness": 7,
-    });
+    expect(storedLevels(p.container.peek(0) as FakeItemStack)).toEqual({ "minecraft:sharpness": 7 });
     expect(p.container.peek(0)?.lore).toEqual(lore);
     expect(warn).not.toHaveBeenCalled();
   });
 
   it("a stackable enchantable stack (book-like) is tracked through lore only and keeps its amount", () => {
-    const p = makePlayer({
-      inv: {
-        0: makeItem("minecraft:book", {
-          amount: 5,
-          enchantable: { compatible: ["unbreaking"] },
-        }),
-      },
-    });
+    const p = makePlayer({ inv: { 0: makeItem("minecraft:book", { amount: 5, enchantable: { compatible: ["unbreaking"] } }) } });
     for (let i = 0; i < 5; i++) breakAndDiff(p);
     const item = p.container.peek(0) as FakeItemStack;
     expect(item.amount).toBe(5);
@@ -456,16 +340,10 @@ describe("bundled main.js in a simulated runtime", () => {
   });
 
   it("lunge only ever lands on spears (500 breaks, 'all'-compatible book + sword + spear)", () => {
-    const p = makePlayer({
-      inv: { 0: sword(), 1: spear("diamond"), 2: enchantedBook() },
-    });
+    const p = makePlayer({ inv: { 0: sword(), 1: spear("diamond"), 2: enchantedBook() } });
     for (let i = 0; i < 500; i++) breakAndDiff(p);
-    expect(
-      p.container.peek(0)?.enchantable?.levels.has("minecraft:lunge"),
-    ).toBe(false);
-    expect(
-      p.container.peek(2)?.enchantable?.levels.has("minecraft:lunge"),
-    ).toBe(false);
+    expect(p.container.peek(0)?.enchantable?.levels.has("minecraft:lunge")).toBe(false);
+    expect(p.container.peek(2)?.enchantable?.levels.has("minecraft:lunge")).toBe(false);
   });
 
   it("the toggle command turns the mode off/on; off → nothing changes", () => {
@@ -489,25 +367,16 @@ describe("bundled main.js in a simulated runtime", () => {
     expect(cmd?.cheatsRequired).toBe(false);
     const p = makePlayer({ inv: { 0: sword() } });
     world.players.push(p);
-    const r = registry.invoke(
-      NOTIFY,
-      { sourceEntity: p },
-      "message",
-      "off",
-    ) as { status: number; message?: string };
+    const r = registry.invoke(NOTIFY, { sourceEntity: p }, "message", "off") as { status: number; message?: string };
     expect(r).toEqual({ status: 0, message: "Enchant message: §cOFF" });
     system.flushRuns();
     expect(p.getDynamicProperty(NOTIFY)).toBe('{"sound":true,"message":false}');
     const before = state(p.container.peek(0));
     breakBlock(p);
-    expect(JSON.stringify(state(p.container.peek(0)))).not.toBe(
-      JSON.stringify(before),
-    );
+    expect(JSON.stringify(state(p.container.peek(0)))).not.toBe(JSON.stringify(before));
     expect(p.onScreenDisplay.actionBars).toHaveLength(0);
     expect(p.sounds).toHaveLength(1);
-    const s = registry.invoke(NOTIFY, { sourceEntity: p }, "status") as {
-      message?: string;
-    };
+    const s = registry.invoke(NOTIFY, { sourceEntity: p }, "status") as { message?: string };
     expect(s.message).toBe("Enchant sound: §aON§r, enchant message: §cOFF");
     expect(warn).not.toHaveBeenCalled();
   });
@@ -531,9 +400,7 @@ describe("bundled main.js in a simulated runtime", () => {
         Feet: makeItem("minecraft:diamond_boots", {
           enchantable: { compatible: "all" },
           levels: { "minecraft:feather_falling": 4 },
-          props: {
-            [PROP_LEVELS]: JSON.stringify({ "minecraft:feather_falling": 5 }),
-          },
+          props: { [PROP_LEVELS]: JSON.stringify({ "minecraft:feather_falling": 5 }) },
         }),
       },
     });
@@ -549,9 +416,7 @@ describe("bundled main.js in a simulated runtime", () => {
         0: makeItem("minecraft:diamond_pickaxe", {
           enchantable: { compatible: "all" },
           levels: { "minecraft:efficiency": 5 },
-          props: {
-            [PROP_LEVELS]: JSON.stringify({ "minecraft:efficiency": 7 }),
-          },
+          props: { [PROP_LEVELS]: JSON.stringify({ "minecraft:efficiency": 7 }) },
         }),
       },
     });

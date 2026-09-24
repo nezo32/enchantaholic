@@ -219,14 +219,10 @@ export function _execMode(): ExecMode {
 
 function guard(api: string): void {
   if (execMode === "restricted" && NO_RESTRICTED_APIS.has(api)) {
-    throw new FakePrivilegeError(
-      `Native function [${api}] does not have required privileges.`,
-    );
+    throw new FakePrivilegeError(`Native function [${api}] does not have required privileges.`);
   }
   if (execMode === "early" && EARLY_FORBIDDEN_APIS.has(api)) {
-    throw new FakePrivilegeError(
-      `Native function [${api}] cannot be used during early execution.`,
-    );
+    throw new FakePrivilegeError(`Native function [${api}] cannot be used during early execution.`);
   }
 }
 
@@ -239,19 +235,13 @@ export class FakeSignal<T> {
   constructor(readonly mode: ExecMode = "normal") {}
 
   subscribe<F extends (ev: T) => void>(cb: F): F {
-    if (execMode === "restricted")
-      throw new FakePrivilegeError(
-        "subscribe() does not have required privileges.",
-      );
+    if (execMode === "restricted") throw new FakePrivilegeError("subscribe() does not have required privileges.");
     this.listeners.push(cb);
     return cb;
   }
 
   unsubscribe(cb: (ev: T) => void): void {
-    if (execMode === "restricted")
-      throw new FakePrivilegeError(
-        "unsubscribe() does not have required privileges.",
-      );
+    if (execMode === "restricted") throw new FakePrivilegeError("unsubscribe() does not have required privileges.");
     const i = this.listeners.indexOf(cb);
     if (i >= 0) this.listeners.splice(i, 1);
   }
@@ -282,14 +272,10 @@ type RealSignalNames =
 type KnownSignals = { [K in RealSignalNames]: FakeSignal<any> };
 /** Lazily creates a FakeSignal for any property name (world.afterEvents.anything). */
 type SignalBag = KnownSignals &
-  Record<string, FakeSignal<any>> & {
-    _all(): Map<string, FakeSignal<unknown>>;
-  };
+  Record<string, FakeSignal<any>> & { _all(): Map<string, FakeSignal<unknown>> };
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-function signalBag(
-  modeOf: (name: string) => ExecMode = () => "normal",
-): SignalBag {
+function signalBag(modeOf: (name: string) => ExecMode = () => "normal"): SignalBag {
   const map = new Map<string, FakeSignal<unknown>>();
   return new Proxy({} as SignalBag, {
     get(_t, prop) {
@@ -353,9 +339,7 @@ export const VANILLA_ENCHANT_MAX: Readonly<Record<string, number>> = {
   "minecraft:wind_burst": 3,
 };
 
-let enchantFixture = new Map<string, number>(
-  Object.entries(VANILLA_ENCHANT_MAX),
-);
+let enchantFixture = new Map<string, number>(Object.entries(VANILLA_ENCHANT_MAX));
 const enchantTypeCache = new Map<string, EnchantmentType>();
 
 export class EnchantmentType {
@@ -364,10 +348,7 @@ export class EnchantmentType {
   constructor(enchantmentType: string, maxLevel?: number) {
     const id = ns(enchantmentType);
     const max = maxLevel ?? enchantFixture.get(id);
-    if (max === undefined)
-      throw new EnchantmentTypeUnknownIdError(
-        `Unknown enchantment ${enchantmentType}`,
-      );
+    if (max === undefined) throw new EnchantmentTypeUnknownIdError(`Unknown enchantment ${enchantmentType}`);
     this.id = id;
     this.maxLevel = max;
   }
@@ -389,9 +370,7 @@ export class EnchantmentTypes {
 
   static getAll(): EnchantmentType[] {
     guard("EnchantmentTypes.getAll");
-    return [...enchantFixture.keys()].map(
-      (id) => EnchantmentTypes.get(id) as EnchantmentType,
-    );
+    return [...enchantFixture.keys()].map((id) => EnchantmentTypes.get(id) as EnchantmentType);
   }
 }
 
@@ -435,9 +414,7 @@ export class FakeEnchantable {
   constructor(opts: FakeEnchantableOptions = {}) {
     const c = opts.compatible ?? "all";
     this.compatible = c === "all" ? "all" : new Set([...c].map(ns));
-    this.conflicts = (opts.conflicts ?? []).map(
-      ([a, b]) => [ns(a), ns(b)] as const,
-    );
+    this.conflicts = (opts.conflicts ?? []).map(([a, b]) => [ns(a), ns(b)] as const);
   }
 
   get isValid(): boolean {
@@ -456,12 +433,9 @@ export class FakeEnchantable {
   private check(e: EnchantmentLike): string {
     const id = typeIdOf(e.type);
     const t = EnchantmentTypes.get(id);
-    if (!t)
-      throw new EnchantmentTypeUnknownIdError(`Unknown enchantment ${id}`);
+    if (!t) throw new EnchantmentTypeUnknownIdError(`Unknown enchantment ${id}`);
     if (!Number.isInteger(e.level) || e.level < 1 || e.level > t.maxLevel) {
-      throw new EnchantmentLevelOutOfBoundsError(
-        `${id} level ${e.level} out of bounds [1, ${t.maxLevel}]`,
-      );
+      throw new EnchantmentLevelOutOfBoundsError(`${id} level ${e.level} out of bounds [1, ${t.maxLevel}]`);
     }
     return id;
   }
@@ -469,8 +443,7 @@ export class FakeEnchantable {
   addEnchantment(enchantment: EnchantmentLike): void {
     guard("ItemEnchantableComponent.addEnchantment");
     const id = this.check(enchantment);
-    if (!this.accepts(id))
-      throw new EnchantmentTypeNotCompatibleError(`${id} not compatible`);
+    if (!this.accepts(id)) throw new EnchantmentTypeNotCompatibleError(`${id} not compatible`);
     this.levels.set(id, enchantment.level);
   }
 
@@ -484,9 +457,7 @@ export class FakeEnchantable {
     return this.accepts(id);
   }
 
-  getEnchantment(
-    enchantmentType: EnchantmentType | string,
-  ): { type: EnchantmentType; level: number } | undefined {
+  getEnchantment(enchantmentType: EnchantmentType | string): { type: EnchantmentType; level: number } | undefined {
     const id = typeIdOf(enchantmentType);
     const level = this.levels.get(id);
     const type = EnchantmentTypes.get(id);
@@ -495,9 +466,7 @@ export class FakeEnchantable {
   }
 
   getEnchantments(): Array<{ type: EnchantmentType; level: number }> {
-    return [...this.levels.keys()]
-      .map((id) => this.getEnchantment(id))
-      .filter((e) => e !== undefined);
+    return [...this.levels.keys()].map((id) => this.getEnchantment(id)).filter((e) => e !== undefined);
   }
 
   hasEnchantment(enchantmentType: EnchantmentType | string): boolean {
@@ -532,8 +501,7 @@ export class FakeEnchantable {
 
 const NON_STACKABLE_RE =
   /(_sword|_pickaxe|_axe|_shovel|_hoe|_spear|_helmet|_chestplate|_leggings|_boots|^minecraft:(bow|crossbow|trident|shield|mace|elytra|fishing_rod|shears|flint_and_steel|enchanted_book|brush|carrot_on_a_stick|warped_fungus_on_a_stick|turtle_helmet))$/;
-const SIXTEEN_RE =
-  /^minecraft:(ender_pearl|snowball|egg|bucket|sign|honey_bottle)$/;
+const SIXTEEN_RE = /^minecraft:(ender_pearl|snowball|egg|bucket|sign|honey_bottle)$/;
 
 export function defaultMaxAmount(typeId: string): number {
   const id = ns(typeId);
@@ -570,18 +538,12 @@ export class FakeItemStack {
   /** Extra components by id (besides minecraft:enchantable). */
   readonly components = new Map<string, unknown>();
 
-  constructor(
-    itemType: string | { id: string },
-    amount = 1,
-    opts: FakeItemOptions = {},
-  ) {
+  constructor(itemType: string | { id: string }, amount = 1, opts: FakeItemOptions = {}) {
     this.typeId = ns(typeof itemType === "string" ? itemType : itemType.id);
     this.maxAmount = opts.maxAmount ?? defaultMaxAmount(this.typeId);
     if (amount < 1 || amount > 255) throw new RangeError(`amount ${amount}`);
     this.amount = amount;
-    this.localizationKey =
-      opts.localizationKey ??
-      `item.${this.typeId.slice(this.typeId.indexOf(":") + 1)}.name`;
+    this.localizationKey = opts.localizationKey ?? `item.${this.typeId.slice(this.typeId.indexOf(":") + 1)}.name`;
     if (opts.nameTag !== undefined) this.nameTag = opts.nameTag;
     if (opts.lore) this.lore = [...opts.lore];
     this.enchantable = opts.enchantable;
@@ -607,10 +569,7 @@ export class FakeItemStack {
   }
 
   getComponents(): unknown[] {
-    return [
-      ...(this.enchantable ? [this.enchantable] : []),
-      ...this.components.values(),
-    ];
+    return [...(this.enchantable ? [this.enchantable] : []), ...this.components.values()];
   }
 
   getTags(): string[] {
@@ -633,39 +592,24 @@ export class FakeItemStack {
   setLore(loreList?: Array<string | object>): void {
     guard("ItemStack.setLore");
     const list = loreList ?? [];
-    if (list.length > LORE_LIMIT_LINES)
-      throw new Error(
-        `Lore has ${list.length} lines (max ${LORE_LIMIT_LINES})`,
-      );
+    if (list.length > LORE_LIMIT_LINES) throw new Error(`Lore has ${list.length} lines (max ${LORE_LIMIT_LINES})`);
     for (const line of list) {
-      if (typeof line !== "string")
-        throw new TypeError("FakeItemStack.setLore only supports strings");
-      if (line.length > LORE_LIMIT_CHARS)
-        throw new Error(
-          `Lore line too long (${line.length} > ${LORE_LIMIT_CHARS})`,
-        );
+      if (typeof line !== "string") throw new TypeError("FakeItemStack.setLore only supports strings");
+      if (line.length > LORE_LIMIT_CHARS) throw new Error(`Lore line too long (${line.length} > ${LORE_LIMIT_CHARS})`);
     }
     this.lore = [...(list as string[])];
   }
 
   private assertPropsAllowed(): void {
-    if (this.isStackable)
-      throw new Error(
-        `Dynamic properties are not supported on stackable item ${this.typeId}`,
-      );
+    if (this.isStackable) throw new Error(`Dynamic properties are not supported on stackable item ${this.typeId}`);
   }
 
-  getDynamicProperty(
-    identifier: string,
-  ): boolean | number | string | undefined {
+  getDynamicProperty(identifier: string): boolean | number | string | undefined {
     this.assertPropsAllowed();
     return this.props.get(identifier) as boolean | number | string | undefined;
   }
 
-  setDynamicProperty(
-    identifier: string,
-    value?: boolean | number | string | object,
-  ): void {
+  setDynamicProperty(identifier: string, value?: boolean | number | string | object): void {
     this.assertPropsAllowed();
     if (value === undefined) this.props.delete(identifier);
     else this.props.set(identifier, value);
@@ -723,8 +667,7 @@ export { FakeItemStack as ItemStack };
 /** Items are copied in and out, like the engine: forgetting write-back loses changes. */
 export class FakeContainer {
   readonly slots: Array<FakeItemStack | undefined>;
-  readonly writes: Array<{ slot: number; item: FakeItemStack | undefined }> =
-    [];
+  readonly writes: Array<{ slot: number; item: FakeItemStack | undefined }> = [];
 
   constructor(readonly size = 36) {
     this.slots = new Array<FakeItemStack | undefined>(size).fill(undefined);
@@ -739,8 +682,7 @@ export class FakeContainer {
   }
 
   private check(slot: number): void {
-    if (!Number.isInteger(slot) || slot < 0 || slot >= this.size)
-      throw new InvalidContainerSlotError(`slot ${slot}`);
+    if (!Number.isInteger(slot) || slot < 0 || slot >= this.size) throw new InvalidContainerSlotError(`slot ${slot}`);
   }
 
   getItem(slot: number): FakeItemStack | undefined {
@@ -769,10 +711,7 @@ export class FakeInventoryComponent {
 export class FakeEquippable {
   readonly typeId = EntityComponentTypes.Equippable;
   readonly items = new Map<EquipmentSlot, FakeItemStack | undefined>();
-  readonly writes: Array<{
-    slot: EquipmentSlot;
-    item: FakeItemStack | undefined;
-  }> = [];
+  readonly writes: Array<{ slot: EquipmentSlot; item: FakeItemStack | undefined }> = [];
   /** When true, setEquipment returns false and stores nothing. */
   rejectWrites = false;
 
@@ -789,8 +728,7 @@ export class FakeEquippable {
   }
 
   getEquipment(slot: EquipmentSlot): FakeItemStack | undefined {
-    if (slot === EquipmentSlot.Mainhand && this.mainhand)
-      return this.mainhand.get();
+    if (slot === EquipmentSlot.Mainhand && this.mainhand) return this.mainhand.get();
     return this.items.get(slot)?.clone();
   }
 
@@ -808,8 +746,7 @@ export class FakeEquippable {
 
   /** Test helper: the stored item itself (no copy). */
   peek(slot: EquipmentSlot): FakeItemStack | undefined {
-    if (slot === EquipmentSlot.Mainhand && this.mainhand)
-      return this.mainhand.get();
+    if (slot === EquipmentSlot.Mainhand && this.mainhand) return this.mainhand.get();
     return this.items.get(slot);
   }
 }
@@ -844,11 +781,7 @@ export class FakeEntity {
   readonly components = new Map<string, unknown>();
   readonly props = new Map<string, boolean | number | string | object>();
   readonly effects = new Map<string, FakeEffect>();
-  readonly addedEffects: Array<{
-    id: string;
-    duration: number;
-    options: unknown;
-  }> = [];
+  readonly addedEffects: Array<{ id: string; duration: number; options: unknown }> = [];
   readonly damageLog: Array<{ amount: number; options: unknown }> = [];
   isValid = true;
   location = { x: 0, y: 64, z: 0 };
@@ -856,11 +789,7 @@ export class FakeEntity {
   constructor(typeId: string, opts: { families?: readonly string[] } = {}) {
     this.id = String(nextEntityId++);
     this.typeId = ns(typeId);
-    if (opts.families)
-      this.components.set(
-        EntityComponentTypes.TypeFamily,
-        new FakeTypeFamily(opts.families),
-      );
+    if (opts.families) this.components.set(EntityComponentTypes.TypeFamily, new FakeTypeFamily(opts.families));
   }
 
   getComponent(componentId: string): unknown {
@@ -871,26 +800,17 @@ export class FakeEntity {
     return this.components.has(ns(componentId));
   }
 
-  getDynamicProperty(
-    identifier: string,
-  ): boolean | number | string | undefined {
+  getDynamicProperty(identifier: string): boolean | number | string | undefined {
     return this.props.get(identifier) as boolean | number | string | undefined;
   }
 
-  setDynamicProperty(
-    identifier: string,
-    value?: boolean | number | string | object,
-  ): void {
+  setDynamicProperty(identifier: string, value?: boolean | number | string | object): void {
     if (value === undefined) this.props.delete(identifier);
     else this.props.set(identifier, value);
   }
 
-  getEffect(
-    effectType: string | { getName(): string },
-  ): FakeEffect | undefined {
-    const id = ns(
-      typeof effectType === "string" ? effectType : effectType.getName(),
-    );
+  getEffect(effectType: string | { getName(): string }): FakeEffect | undefined {
+    const id = ns(typeof effectType === "string" ? effectType : effectType.getName());
     return this.effects.get(id);
   }
 
@@ -904,9 +824,7 @@ export class FakeEntity {
     options?: { amplifier?: number; showParticles?: boolean },
   ): FakeEffect | undefined {
     guard("Entity.addEffect");
-    const id = ns(
-      typeof effectType === "string" ? effectType : effectType.getName(),
-    );
+    const id = ns(typeof effectType === "string" ? effectType : effectType.getName());
     this.addedEffects.push({ id, duration, options });
     const effect: FakeEffect = {
       typeId: id,
@@ -964,10 +882,7 @@ export class FakePlayer extends FakeEntity {
       get: () => this.container.getItem(this.selectedSlotIndex),
       set: (item) => this.container.setItem(this.selectedSlotIndex, item),
     });
-    this.components.set(
-      EntityComponentTypes.Inventory,
-      new FakeInventoryComponent(this.container),
-    );
+    this.components.set(EntityComponentTypes.Inventory, new FakeInventoryComponent(this.container));
     this.components.set(EntityComponentTypes.Equippable, this.equippable);
   }
 
@@ -992,43 +907,25 @@ export class FakePlayer extends FakeEntity {
 
 // ───────────────────────────── custom commands ─────────────────────────────
 
-export type FakeCommandCallback = (
-  origin: unknown,
-  ...args: unknown[]
-) => unknown;
+export type FakeCommandCallback = (origin: unknown, ...args: unknown[]) => unknown;
 
 export class FakeCustomCommandRegistry {
   readonly enums = new Map<string, string[]>();
-  readonly commands = new Map<
-    string,
-    { command: mc.CustomCommand; callback: FakeCommandCallback }
-  >();
+  readonly commands = new Map<string, { command: mc.CustomCommand; callback: FakeCommandCallback }>();
 
   registerEnum(name: string, values: string[]): void {
     guard("CustomCommandRegistry.registerEnum");
-    if (this.enums.has(name))
-      throw new Error(`Enum ${name} already registered`);
+    if (this.enums.has(name)) throw new Error(`Enum ${name} already registered`);
     this.enums.set(name, [...values]);
   }
 
-  registerCommand(
-    customCommand: mc.CustomCommand,
-    callback: FakeCommandCallback,
-  ): void {
+  registerCommand(customCommand: mc.CustomCommand, callback: FakeCommandCallback): void {
     guard("CustomCommandRegistry.registerCommand");
-    if (!customCommand.name.includes(":"))
-      throw new Error("Custom command names must be namespaced");
-    if (this.commands.has(customCommand.name))
-      throw new Error(`Command ${customCommand.name} already registered`);
+    if (!customCommand.name.includes(":")) throw new Error("Custom command names must be namespaced");
+    if (this.commands.has(customCommand.name)) throw new Error(`Command ${customCommand.name} already registered`);
     // The engine resolves an Enum parameter by its name, so the enum must already be registered.
-    for (const param of [
-      ...(customCommand.mandatoryParameters ?? []),
-      ...(customCommand.optionalParameters ?? []),
-    ]) {
-      if (
-        param.type === CustomCommandParamType.Enum &&
-        !this.enums.has(param.name)
-      ) {
+    for (const param of [...(customCommand.mandatoryParameters ?? []), ...(customCommand.optionalParameters ?? [])]) {
+      if (param.type === CustomCommandParamType.Enum && !this.enums.has(param.name)) {
         throw new Error(`Enum parameter ${param.name} has no registered enum`);
       }
     }
@@ -1046,8 +943,7 @@ export class FakeCustomCommandRegistry {
 // ───────────────────────────── world / system ─────────────────────────────
 
 const restrictedSignals = (): ExecMode => "restricted";
-const systemBeforeMode = (name: string): ExecMode =>
-  name === "startup" ? "early" : "restricted";
+const systemBeforeMode = (name: string): ExecMode => (name === "startup" ? "early" : "restricted");
 
 class FakeWorld {
   afterEvents: SignalBag = signalBag();
@@ -1056,17 +952,12 @@ class FakeWorld {
   readonly messages: unknown[] = [];
   players: FakePlayer[] = [];
 
-  getDynamicProperty(
-    identifier: string,
-  ): boolean | number | string | undefined {
+  getDynamicProperty(identifier: string): boolean | number | string | undefined {
     guard("World.getDynamicProperty");
     return this.props.get(identifier) as boolean | number | string | undefined;
   }
 
-  setDynamicProperty(
-    identifier: string,
-    value?: boolean | number | string | object,
-  ): void {
+  setDynamicProperty(identifier: string, value?: boolean | number | string | object): void {
     guard("World.setDynamicProperty");
     if (value === undefined) this.props.delete(identifier);
     else this.props.set(identifier, value);
@@ -1133,9 +1024,7 @@ class FakeSystem {
   }
 
   clearRun(runId: number): void {
-    for (const list of [this.runQueue, this.intervals, this.timeouts] as Array<
-      Array<{ id: number }>
-    >) {
+    for (const list of [this.runQueue, this.intervals, this.timeouts] as Array<Array<{ id: number }>>) {
       const i = list.findIndex((e) => e.id === runId);
       if (i >= 0) list.splice(i, 1);
     }
@@ -1145,8 +1034,7 @@ class FakeSystem {
   flushRuns(): void {
     let guard = 0;
     while (this.runQueue.length > 0) {
-      if (++guard > 10_000)
-        throw new Error("flushRuns: runaway system.run loop");
+      if (++guard > 10_000) throw new Error("flushRuns: runaway system.run loop");
       const next = this.runQueue.shift();
       next?.fn();
     }

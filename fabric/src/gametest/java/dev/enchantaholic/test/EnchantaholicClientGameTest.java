@@ -23,9 +23,9 @@ import net.minecraft.world.level.storage.LevelResource;
  * <li>World 1 (cheats on): toggle the Create World "Game" tab button to ON, create, assert the saved mode is ON
  *     (in memory and in data/enchantaholic/mode.dat), then flip it with /enchantaholic off|on as the host.</li>
  * <li>Cancel: open Create World, toggle ON, Cancel. Nothing may leak into the next world.</li>
- * <li>World 2 (cheats off): leave the button alone, create, assert OFF; the host is not an op, so the command is
+ * <li>World 2 (cheats off): switch the button OFF, create, assert OFF; the host is not an op, so the command is
  *     not in the client command tree and sending it changes nothing.</li>
- * <li>Re-Create world 1 from the world list: the button starts OFF (not copied), toggled ON, new world is ON.</li>
+ * <li>Re-Create world 2 (OFF) from the world list: the button starts at the default ON (not copied), new world is ON.</li>
  * <li>Re-open world 1 and world 2: mode.dat is read back (ON / OFF), no pending value is applied.</li>
  * </ol>
  */
@@ -34,19 +34,21 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 
 	@Override
 	public void runTest(ClientGameTestContext ctx) {
-		// 1. world 1: toggle ON, cheats on
+		// 1. world 1: starts ON (the default), toggle OFF/ON/OFF/ON, cheats on
 		openCreateWorld(ctx);
 		boolean initial = uiMode(ctx);
+		ctx.takeScreenshot("create_world_game_tab");
 		ctx.clickScreenButton(TOGGLE);
 		boolean afterFirst = uiMode(ctx);
-		ctx.takeScreenshot("create_world_game_tab");
 		ctx.clickScreenButton(TOGGLE);
 		boolean afterSecond = uiMode(ctx);
 		ctx.clickScreenButton(TOGGLE);
 		boolean afterThird = uiMode(ctx);
-		if (initial || !afterFirst || afterSecond || !afterThird) {
+		ctx.clickScreenButton(TOGGLE);
+		boolean afterFourth = uiMode(ctx);
+		if (!initial || afterFirst || !afterSecond || afterThird || !afterFourth) {
 			throw new AssertionError("toggle failed: initial=" + initial + " first=" + afterFirst
-					+ " second=" + afterSecond + " third=" + afterThird);
+					+ " second=" + afterSecond + " third=" + afterThird + " fourth=" + afterFourth);
 		}
 		ctx.runOnClient(mc -> ((CreateWorldScreen) mc.gui.screen()).getUiState().setAllowCommands(true));
 		Path world1 = createWorld(ctx);
@@ -61,17 +63,18 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 		waitForMode(ctx, true, "world 1 after /enchantaholic on");
 		leaveWorld(ctx);
 
-		// 2. Cancel after toggling ON must not leak
+		// 2. Cancel after toggling OFF must not leak
 		ctx.runOnClient(mc -> CreateWorldScreen.openFresh(mc, () -> mc.gui.setScreen(new TitleScreen())));
 		ctx.waitForScreen(CreateWorldScreen.class);
 		ctx.clickScreenButton(TOGGLE);
-		if (!uiMode(ctx)) throw new AssertionError("toggle before cancel did not turn ON");
+		if (uiMode(ctx)) throw new AssertionError("toggle before cancel did not turn OFF");
 		ctx.clickScreenButton("gui.cancel");
 		ctx.waitForScreen(TitleScreen.class);
 
-		// 3. world 2: default OFF, cheats off (host is not an op)
+		// 3. world 2: a fresh screen starts ON again; switch it OFF, cheats off (host is not an op)
 		openCreateWorld(ctx);
-		if (uiMode(ctx)) throw new AssertionError("fresh Create World screen starts ON");
+		if (!uiMode(ctx)) throw new AssertionError("fresh Create World screen does not start ON");
+		ctx.clickScreenButton(TOGGLE);
 		Path world2 = createWorld(ctx);
 		assertMode(ctx, false, "world 2 after create");
 		if (world1.equals(world2)) throw new AssertionError("same world folder twice: " + world1);
@@ -81,12 +84,11 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 		assertMode(ctx, false, "world 2 after non-op /enchantaholic on");
 		leaveWorld(ctx);
 
-		// 4. Re-Create world 1: the button is not copied from the old world, and the handoff works on this path
+		// 4. Re-Create world 2 (OFF): the button starts at the default ON, not copied from the old world
 		openWorldList(ctx);
-		ctx.runOnClient(mc -> worldEntry(mc, world1).recreateWorld());
+		ctx.runOnClient(mc -> worldEntry(mc, world2).recreateWorld());
 		ctx.waitForScreen(CreateWorldScreen.class);
-		if (uiMode(ctx)) throw new AssertionError("Re-Create screen starts ON (copied from the old world?)");
-		ctx.clickScreenButton(TOGGLE);
+		if (!uiMode(ctx)) throw new AssertionError("Re-Create screen does not start ON (copied from the old world?)");
 		Path world3 = createWorld(ctx);
 		assertMode(ctx, true, "re-created world");
 		if (world3.equals(world1) || world3.equals(world2)) throw new AssertionError("re-create reused " + world3);

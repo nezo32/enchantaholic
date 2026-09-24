@@ -36,7 +36,7 @@ Difficulty and hardcore settings are never changed. Levels beyond X are shown as
 |---|---|---|
 | Game versions | Minecraft Java 26.2–26.3 | Bedrock 26.50+ |
 | Turning it on | **Enchantaholic Mode** ON/OFF button on the Create World → Game tab (saved with the world), or `/enchantaholic on` | Activate the behavior pack when you create the world |
-| Default | Off | On while the pack is active |
+| Default | On for new worlds (Create World button); off for worlds made without it, e.g. dedicated servers | On while the pack is active |
 | Toggling later | `/enchantaholic [on\|off\|status]`, operators only (permission level 2, like /gamerule) | `/enchantaholic:toggle [on\|off\|status]`, operators only (works with cheats off) |
 | Enchantment/item pairs | Any enchantment on any item (compatibility is not checked) | Only pairs Bedrock accepts: an incompatible pick is rerolled (another enchantment or another item) |
 | Level cap | 255 (Java's hard limit) | No cap on the tracked level. The **real** enchantment stops at the vanilla max, and the true level is kept in a lore line and a dynamic property on the item |
@@ -66,9 +66,9 @@ Every enchant shows an actionbar message and plays a quiet chime. Each player ca
    the jar from [GitHub releases](https://github.com/nezo32/enchantaholic/releases) or CurseForge.
    Optional: [Mod Menu](https://modrinth.com/mod/modmenu) for the settings screen.
 3. Turn the mode on in one of two ways:
-   - **New world:** Create World → Game tab → set **Enchantaholic Mode** to **ON**.
+   - **New world:** Create World → Game tab → **Enchantaholic Mode** is **ON** by default (switch it off there for a normal world).
    - **Existing world or dedicated server:** an operator runs `/enchantaholic on` (`/enchantaholic status` shows the
-     current state). It is off by default. In single-player this needs cheats: Allow Commands on, or Open to LAN with
+     current state). Worlds made without the button (dedicated servers, other launchers) start with it off. In single-player this needs cheats: Allow Commands on, or Open to LAN with
      Allow Cheats on.
 
 **Upgrading from 0.1.0:** 0.1.0 used a game rule (`enchantaholic:enchantaholic`) instead. Worlds that had it on are

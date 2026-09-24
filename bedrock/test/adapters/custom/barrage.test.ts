@@ -3,9 +3,17 @@ import { _copies } from "../../../src/adapters/custom/copies";
 import { _trackedKaboom } from "../../../src/adapters/custom/kaboom";
 import { registerProjectiles } from "../../../src/adapters/custom/projectile-dispatch";
 import { registerShotSnapshots, SNAPSHOT_TICKS } from "../../../src/adapters/custom/shots";
-import { COPY_TAG } from "../../../src/core/custom/tuning";
+import { COPY_LIFETIME_TICKS, COPY_TAG, MAX_TRACKED_COPIES } from "../../../src/core/custom/tuning";
 import { COMPAT, makeEntity, makePlayer, makeProjectileHit } from "../../fakes/builders";
-import { system, world, type FakeEntity, type FakePlayer } from "../../fakes/minecraft-server";
+import {
+  EntityComponentTypes,
+  EntityInitializationCause,
+  FakeEntity,
+  FakeProjectileComponent,
+  system,
+  world,
+  type FakePlayer,
+} from "../../fakes/minecraft-server";
 import { customOff, customOn, launch, live, overworld, projectileOf, resetCustom, withCustoms } from "./fx";
 
 const ARROW = "minecraft:arrow";
@@ -21,8 +29,9 @@ const copiesOf = (original: FakeEntity, type = ARROW): FakeEntity[] =>
   overworld().entities.filter((e) => e !== original && e.typeId === type);
 
 describe("barrage", () => {
+  let warn: ReturnType<typeof resetCustom>;
   beforeEach(() => {
-    resetCustom();
+    warn = resetCustom();
     registerProjectiles();
     registerShotSnapshots();
     customOn();
@@ -87,23 +96,64 @@ describe("barrage", () => {
     expect(_copies().size).toBe(0);
   });
 
-  it("a trident thrown from an empty hand uses the item-use snapshot", () => {
-    const trident = withCustoms("minecraft:trident", { barrage: 1 });
+  it("a trident thrown from an empty hand uses the item-use snapshot (Kaboom; tridents are never copied)", () => {
+    const trident = withCustoms("minecraft:trident", { barrage: 1, kaboom: 2 });
     const p = makePlayer({ inv: { 0: trident } });
     world.afterEvents.itemStartUse.emit({ source: p, itemStack: trident.clone(), useDuration: 72000 });
     world.afterEvents.itemReleaseUse.emit({ source: p, itemStack: trident.clone(), useDuration: 100 });
     p.container.slots[0] = undefined; // the trident left the hand
     const t = launch(p, "minecraft:thrown_trident");
-    expect(copiesOf(t, "minecraft:thrown_trident")).toHaveLength(10);
+    expect(_trackedKaboom().get(t.id)?.power).toBe(2);
+    // thrown_trident is not summonable: no copy attempt, so no content-log warning either.
+    expect(copiesOf(t, "minecraft:thrown_trident")).toHaveLength(0);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("a stale snapshot is ignored", () => {
-    const trident = withCustoms("minecraft:trident", { barrage: 1 });
+    const trident = withCustoms("minecraft:trident", { kaboom: 2 });
     const p = makePlayer({ inv: {} });
     world.afterEvents.itemReleaseUse.emit({ source: p, itemStack: trident, useDuration: 100 });
     system.advance(SNAPSHOT_TICKS + 1);
     const t = launch(p, "minecraft:thrown_trident");
-    expect(copiesOf(t, "minecraft:thrown_trident")).toHaveLength(0);
+    expect(_trackedKaboom().has(t.id)).toBe(false);
+  });
+
+  it("never more than MAX_TRACKED_COPIES live copies, however fast the player shoots", () => {
+    const p = archer({ barrage: 10 });
+    for (let i = 0; i < 20; i++) launch(p);
+    expect(live(ARROW).filter((e) => e.hasTag(COPY_TAG))).toHaveLength(MAX_TRACKED_COPIES);
+    expect(_copies().size).toBe(MAX_TRACKED_COPIES);
+    system.advance(COPY_LIFETIME_TICKS); // they expire, the budget frees up
+    launch(p);
+    expect(live(ARROW).filter((e) => e.hasTag(COPY_TAG))).toHaveLength(64);
+  });
+
+  it("entities loaded from disk: never copied, and saved copies are removed (no pickup dupe)", () => {
+    const p = archer({ barrage: 2, kaboom: 2 });
+    // A player arrow stuck in the ground, loaded again while the player holds the bow.
+    const stuck = new FakeEntity(ARROW);
+    const proj = new FakeProjectileComponent(stuck);
+    proj.owner = p;
+    stuck.components.set(EntityComponentTypes.Projectile, proj);
+    overworld().addEntity(stuck, { x: 3, y: 64, z: 3 });
+    world.afterEvents.entitySpawn.emit({ entity: stuck, cause: EntityInitializationCause.Loaded });
+    expect(copiesOf(stuck)).toHaveLength(0);
+    expect(stuck.isValid).toBe(true);
+
+    // A copy that was unloaded mid-flight (timeout could not reach it) comes back with its tag.
+    for (const signal of ["spawn", "load"] as const) {
+      const saved = overworld().addEntity(new FakeEntity(ARROW), { x: 9, y: 64, z: 9 });
+      saved.addTag(COPY_TAG);
+      if (signal === "spawn") world.afterEvents.entitySpawn.emit({ entity: saved, cause: EntityInitializationCause.Loaded });
+      else world.afterEvents.entityLoad.emit({ entity: saved });
+      expect(saved.isValid).toBe(false);
+    }
+    // Stale-copy cleanup does not depend on the setting.
+    customOff();
+    const saved = overworld().addEntity(new FakeEntity(ARROW), { x: 9, y: 64, z: 9 });
+    saved.addTag(COPY_TAG);
+    world.afterEvents.entityLoad.emit({ entity: saved });
+    expect(saved.isValid).toBe(false);
   });
 
   it("snowballs and eggs: the thrown item's own levels count", () => {

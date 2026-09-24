@@ -23,6 +23,11 @@ public final class Kaboom {
 		budget = CustomMath.KABOOM_PER_TICK;
 	}
 
+	/** Kaboom explosions so far in the current server tick (at most {@link CustomMath#KABOOM_PER_TICK}). */
+	public static int explosionsThisTick() {
+		return CustomMath.KABOOM_PER_TICK - budget;
+	}
+
 	/** Projectile#applyOnProjectileSpawned (HEAD): every player projectile spawned through vanilla's helpers or by Barrage. */
 	public static void onSpawned(Projectile projectile, ServerLevel level, ItemStack pickupStack) {
 		if (!(projectile.getOwner() instanceof Player) || !CustomEnchants.enabled(level)) return;

@@ -1,5 +1,6 @@
 package dev.enchantaholic.test;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -14,23 +15,29 @@ import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.gui.screens.worldselection.WorldSelectionList;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtAccounter;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.storage.LevelResource;
 
 /**
  * Client gametest (not part of {@code build}; run with {@code ./gradlew runClientGameTest} under Xvfb).
  * <ol>
- * <li>World 1 (cheats on): toggle the Create World "Game" tab button to ON, create, assert the saved mode is ON
- *     (in memory and in data/enchantaholic/mode.dat), then flip it with /enchantaholic off|on as the host.</li>
- * <li>Cancel: open Create World, toggle ON, Cancel. Nothing may leak into the next world.</li>
- * <li>World 2 (cheats off): leave the button alone, create, assert OFF; the host is not an op, so the command is
- *     not in the client command tree and sending it changes nothing.</li>
- * <li>Re-Create world 1 from the world list: the button starts OFF (not copied), toggled ON, new world is ON.</li>
+ * <li>World 1 (cheats on): toggle both Create World "Game" tab buttons (Enchantaholic Mode, Custom Enchantments)
+ *     to ON, create, assert the saved mode and customs are ON (in memory and in data/enchantaholic/mode.dat), then
+ *     flip them with /enchantaholic off|on and /enchantaholic custom off|on as the host.</li>
+ * <li>Cancel: open Create World, toggle both ON, Cancel. Nothing may leak into the next world.</li>
+ * <li>World 2 (cheats off): leave the buttons alone, create, assert both OFF; the host is not an op, so the command
+ *     is not in the client command tree and sending it changes nothing.</li>
+ * <li>Re-Create world 1 from the world list: both buttons start OFF (not copied); only Custom Enchantments is toggled
+ *     ON, so the new world has customs ON and the mode OFF (the two settings are independent).</li>
  * <li>Re-open world 1 and world 2: mode.dat is read back (ON / OFF), no pending value is applied.</li>
  * </ol>
  */
 public class EnchantaholicClientGameTest implements FabricClientGameTest {
 	private static final String TOGGLE = "enchantaholic.createWorld.toggle";
+	private static final String CUSTOM_TOGGLE = "enchantaholic.createWorld.customToggle";
 
 	@Override
 	public void runTest(ClientGameTestContext ctx) {
@@ -48,9 +55,25 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 			throw new AssertionError("toggle failed: initial=" + initial + " first=" + afterFirst
 					+ " second=" + afterSecond + " third=" + afterThird);
 		}
+		// second button: default OFF, toggles independently of the mode button
+		boolean customInitial = uiCustom(ctx);
+		ctx.clickScreenButton(CUSTOM_TOGGLE);
+		boolean customFirst = uiCustom(ctx);
+		ctx.clickScreenButton(CUSTOM_TOGGLE);
+		boolean customSecond = uiCustom(ctx);
+		ctx.clickScreenButton(CUSTOM_TOGGLE);
+		boolean customThird = uiCustom(ctx);
+		if (customInitial || !customFirst || customSecond || !customThird) {
+			throw new AssertionError("custom toggle failed: initial=" + customInitial + " first=" + customFirst
+					+ " second=" + customSecond + " third=" + customThird);
+		}
+		if (!uiMode(ctx)) throw new AssertionError("custom toggle changed the mode button");
+		ctx.takeScreenshot("create_world_game_tab_custom");
 		ctx.runOnClient(mc -> ((CreateWorldScreen) mc.gui.screen()).getUiState().setAllowCommands(true));
 		Path world1 = createWorld(ctx);
 		assertMode(ctx, true, "world 1 after create");
+		assertCustom(ctx, true, "world 1 after create");
+		if (!savedCustom(world1)) throw new AssertionError("customEnchants not true in " + world1 + "/data/enchantaholic/mode.dat");
 		if (!Files.isRegularFile(world1.resolve("data/enchantaholic/mode.dat"))) {
 			throw new AssertionError("mode.dat not written right after creating " + world1);
 		}
@@ -59,6 +82,11 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 		waitForMode(ctx, false, "world 1 after /enchantaholic off");
 		sendCommand(ctx, "enchantaholic on");
 		waitForMode(ctx, true, "world 1 after /enchantaholic on");
+		sendCommand(ctx, "enchantaholic custom off");
+		waitForCustom(ctx, false, "world 1 after /enchantaholic custom off");
+		assertMode(ctx, true, "world 1 mode after /enchantaholic custom off");
+		sendCommand(ctx, "enchantaholic custom on");
+		waitForCustom(ctx, true, "world 1 after /enchantaholic custom on");
 		leaveWorld(ctx);
 
 		// 2. Cancel after toggling ON must not leak
@@ -66,19 +94,25 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 		ctx.waitForScreen(CreateWorldScreen.class);
 		ctx.clickScreenButton(TOGGLE);
 		if (!uiMode(ctx)) throw new AssertionError("toggle before cancel did not turn ON");
+		ctx.clickScreenButton(CUSTOM_TOGGLE);
+		if (!uiCustom(ctx)) throw new AssertionError("custom toggle before cancel did not turn ON");
 		ctx.clickScreenButton("gui.cancel");
 		ctx.waitForScreen(TitleScreen.class);
 
 		// 3. world 2: default OFF, cheats off (host is not an op)
 		openCreateWorld(ctx);
 		if (uiMode(ctx)) throw new AssertionError("fresh Create World screen starts ON");
+		if (uiCustom(ctx)) throw new AssertionError("fresh Create World screen starts with Custom Enchantments ON");
 		Path world2 = createWorld(ctx);
 		assertMode(ctx, false, "world 2 after create");
+		assertCustom(ctx, false, "world 2 after create (default)");
 		if (world1.equals(world2)) throw new AssertionError("same world folder twice: " + world1);
 		if (hasClientCommand(ctx)) throw new AssertionError("non-op host (cheats off) sees /enchantaholic");
 		sendCommand(ctx, "enchantaholic on");
+		sendCommand(ctx, "enchantaholic custom on");
 		ctx.waitTicks(20);
 		assertMode(ctx, false, "world 2 after non-op /enchantaholic on");
+		assertCustom(ctx, false, "world 2 after non-op /enchantaholic custom on");
 		leaveWorld(ctx);
 
 		// 4. Re-Create world 1: the button is not copied from the old world, and the handoff works on this path
@@ -86,18 +120,22 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 		ctx.runOnClient(mc -> worldEntry(mc, world1).recreateWorld());
 		ctx.waitForScreen(CreateWorldScreen.class);
 		if (uiMode(ctx)) throw new AssertionError("Re-Create screen starts ON (copied from the old world?)");
-		ctx.clickScreenButton(TOGGLE);
+		if (uiCustom(ctx)) throw new AssertionError("Re-Create screen starts with Custom Enchantments ON (copied?)");
+		ctx.clickScreenButton(CUSTOM_TOGGLE);
 		Path world3 = createWorld(ctx);
-		assertMode(ctx, true, "re-created world");
+		assertMode(ctx, false, "re-created world (mode button untouched)");
+		assertCustom(ctx, true, "re-created world");
 		if (world3.equals(world1) || world3.equals(world2)) throw new AssertionError("re-create reused " + world3);
 		leaveWorld(ctx);
 
 		// 5. re-open existing worlds: the stored value is read back, nothing pending
 		joinWorld(ctx, world1);
 		assertMode(ctx, true, "world 1 re-opened");
+		assertCustom(ctx, true, "world 1 re-opened");
 		leaveWorld(ctx);
 		joinWorld(ctx, world2);
 		assertMode(ctx, false, "world 2 re-opened");
+		assertCustom(ctx, false, "world 2 re-opened");
 		leaveWorld(ctx);
 
 		ctx.setScreen(TitleScreen::new);
@@ -136,6 +174,33 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 			ctx.waitFor(mc -> EnchantaholicMode.isEnabled(mc.getSingleplayerServer()) == expected, 100);
 		} catch (RuntimeException | AssertionError e) {
 			throw new AssertionError(what + ": mode never became " + expected, e);
+		}
+	}
+
+	private static boolean serverCustom(ClientGameTestContext ctx) {
+		return ctx.computeOnClient(mc -> EnchantaholicMode.isCustomEnchants(mc.getSingleplayerServer()));
+	}
+
+	private static void assertCustom(ClientGameTestContext ctx, boolean expected, String what) {
+		boolean actual = serverCustom(ctx);
+		if (actual != expected) throw new AssertionError(what + ": customs " + actual + ", expected " + expected);
+	}
+
+	private static void waitForCustom(ClientGameTestContext ctx, boolean expected, String what) {
+		try {
+			ctx.waitFor(mc -> EnchantaholicMode.isCustomEnchants(mc.getSingleplayerServer()) == expected, 100);
+		} catch (RuntimeException | AssertionError e) {
+			throw new AssertionError(what + ": customs never became " + expected, e);
+		}
+	}
+
+	/** customEnchants as written to disk (the handoff saves right away, see ModeBootstrap). */
+	private static boolean savedCustom(Path world) {
+		try {
+			CompoundTag root = NbtIo.readCompressed(world.resolve("data/enchantaholic/mode.dat"), NbtAccounter.unlimitedHeap());
+			return root.getCompoundOrEmpty("data").getBooleanOr("customEnchants", false);
+		} catch (IOException e) {
+			throw new AssertionError("cannot read mode.dat of " + world, e);
 		}
 	}
 
@@ -189,5 +254,9 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 
 	private static boolean uiMode(ClientGameTestContext ctx) {
 		return ctx.computeOnClient(mc -> ((CreateWorldModeHolder) mc.gui.screen()).enchantaholic$isModeEnabled());
+	}
+
+	private static boolean uiCustom(ClientGameTestContext ctx) {
+		return ctx.computeOnClient(mc -> ((CreateWorldModeHolder) mc.gui.screen()).enchantaholic$isCustomEnabled());
 	}
 }

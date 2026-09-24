@@ -23,6 +23,7 @@ describe("registerCustomEffects", () => {
     expect(world.afterEvents.playerBreakBlock.count).toBe(1);
     expect(world.afterEvents.entityHitEntity.count).toBe(1);
     expect(world.afterEvents.entitySpawn.count).toBe(1);
+    expect(world.afterEvents.entityLoad.count).toBe(1);
     expect(world.afterEvents.entityRemove.count).toBe(1);
     expect(world.afterEvents.projectileHitBlock.count).toBe(1);
     expect(world.afterEvents.projectileHitEntity.count).toBe(1);

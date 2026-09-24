@@ -64,6 +64,18 @@ public final class TestSupport {
 		return EnchantaholicMode.isEnabled(h.getLevel().getServer());
 	}
 
+	/**
+	 * Sets the Custom Enchantments switch (per world, server-global). Custom-effect tests run in parallel and rely on
+	 * it being ON: a test that needs OFF does synchronous work only and restores ON in {@code finally}.
+	 */
+	public static void setCustom(GameTestHelper h, boolean value) {
+		EnchantaholicMode.setCustomEnchants(h.getLevel().getServer(), value);
+	}
+
+	public static boolean custom(GameTestHelper h) {
+		return EnchantaholicMode.isCustomEnchants(h.getLevel().getServer());
+	}
+
 	/** Places {@code b} at {@link #BREAK_POS} and has the player break it (fires PlayerBlockBreakEvents.AFTER). */
 	public static void breakBlock(GameTestHelper h, ServerPlayer p, Block b) {
 		h.setBlock(BREAK_POS, b);

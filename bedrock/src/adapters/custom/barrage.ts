@@ -1,15 +1,21 @@
 import { EntityComponentTypes, system, type Entity, type Player } from "@minecraft/server";
 import { barrageCount, kaboomPower, spreadVelocity } from "../../core/custom/math";
-import { BARRAGE_SPREAD_DEG, COPY_LIFETIME_TICKS, COPY_TAG } from "../../core/custom/tuning";
+import { BARRAGE_SPREAD_DEG, COPY_LIFETIME_TICKS, COPY_TAG, MAX_TRACKED_COPIES } from "../../core/custom/tuning";
 import { defaultRng, type Rng } from "../../core/rng";
 import { safe, warnOnce } from "../log";
 import { isCustomEnabled } from "../state";
-import { _resetCopies, forgetCopy, isCopy, rememberCopy } from "./copies";
+import { _resetCopies, forgetCopy, isCopy, liveCopies, rememberCopy } from "./copies";
 import { activePlayer, PLAYER_TYPE } from "./gate";
 import { trackKaboom } from "./kaboom";
 import { LAUNCHERS, launcherLevels } from "./shots";
 
 export { isCopy };
+
+/**
+ * Projectiles Barrage cannot copy: `minecraft:thrown_trident` is `is_summonable: false` in the vanilla
+ * behavior pack, so `Dimension.spawnEntity` refuses it. Kaboom still works on tridents.
+ */
+const NOT_COPYABLE: ReadonlySet<string> = new Set(["minecraft:thrown_trident"]);
 
 /** Set while copies are being spawned: their own spawn events are ignored (no recursion). */
 let spawningCopies = false;
@@ -56,7 +62,9 @@ export function onProjectileSpawn(entity: Entity, rng: Rng = defaultRng): void {
   const { barrage, kaboom } = launcherLevels(player, typeId);
   const power = kaboomPower(kaboom);
   if (power > 0) trackKaboom(entity, power, player);
-  const n = barrageCount(barrage);
+  if (NOT_COPYABLE.has(typeId)) return;
+  // Never more than MAX_TRACKED_COPIES live copies in the world, however fast players shoot.
+  const n = Math.min(barrageCount(barrage), MAX_TRACKED_COPIES - liveCopies());
   if (n <= 0) return;
 
   const velocity = entity.getVelocity();
@@ -74,6 +82,16 @@ export function onProjectileSpawn(entity: Entity, rng: Rng = defaultRng): void {
   } finally {
     spawningCopies = false;
   }
+}
+
+/**
+ * A copy saved with its chunk (unloaded mid-flight, so the timeout could not remove it) and loaded
+ * again: remove it at once so it can never be picked up.
+ */
+export function removeStaleCopy(entity: Entity): void {
+  if (!LAUNCHERS.has(entity.typeId) || !isCopy(entity)) return;
+  forgetCopy(entity.id);
+  if (entity.isValid) entity.remove();
 }
 
 /** Test helper. */

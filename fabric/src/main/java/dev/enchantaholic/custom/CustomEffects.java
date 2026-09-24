@@ -1,6 +1,7 @@
 package dev.enchantaholic.custom;
 
 import dev.enchantaholic.Enchantaholic;
+import dev.enchantaholic.core.CustomMath;
 import net.fabricmc.fabric.api.entity.FakePlayer;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -93,16 +94,22 @@ public final class CustomEffects {
 		if (!enabled) return;
 		int tick = server.getTickCount();
 		safely("tick", () -> {
-			for (ServerPlayer p : server.getPlayerList().getPlayers()) {
-				if (p.isSpectator() || !p.isAlive()) continue;
-				int phase = tick + p.getId();
-				if (phase % dev.enchantaholic.core.CustomMath.PULSE_TICKS == 0) {
-					Magnet.pulse(p);
-					MoonBoots.pulse(p);
-				}
-				if (phase % dev.enchantaholic.core.CustomMath.HICCUP_TICKS == 0) Hiccups.roll(p);
-			}
+			for (ServerPlayer p : server.getPlayerList().getPlayers()) tickPlayer(p, tick);
 		});
+	}
+
+	/**
+	 * Periodic per-player effects for server tick {@code tick}, staggered by entity id: Magnet and Moon Boots
+	 * every {@link CustomMath#PULSE_TICKS}, a Hiccups roll every {@link CustomMath#HICCUP_TICKS}. Gated by the switch.
+	 */
+	public static void tickPlayer(ServerPlayer p, int tick) {
+		if (p.isSpectator() || !p.isAlive() || !CustomEnchants.enabled(p.level())) return;
+		int phase = tick + p.getId();
+		if (phase % CustomMath.PULSE_TICKS == 0) {
+			Magnet.pulse(p);
+			MoonBoots.pulse(p);
+		}
+		if (phase % CustomMath.HICCUP_TICKS == 0) Hiccups.roll(p);
 	}
 
 	private static boolean loggedFailure;

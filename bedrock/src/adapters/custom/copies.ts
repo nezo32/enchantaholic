@@ -14,6 +14,11 @@ export function rememberCopy(id: string): void {
   }
 }
 
+/** Number of tracked (live) copies. */
+export function liveCopies(): number {
+  return copies.size;
+}
+
 export function forgetCopy(id: string): void {
   copies.delete(id);
 }

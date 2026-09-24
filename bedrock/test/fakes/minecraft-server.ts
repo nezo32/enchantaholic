@@ -846,6 +846,16 @@ export const PROJECTILE_TYPE_IDS: ReadonlySet<string> = new Set([
   "minecraft:fireworks_rocket",
 ]);
 
+/**
+ * Vanilla entities with `is_summonable: false` (Mojang/bedrock-samples behavior_pack/entities):
+ * the engine's spawnEntity refuses them (EntitySpawnError). Items go through spawnItem.
+ */
+export const NOT_SUMMONABLE_TYPE_IDS: ReadonlySet<string> = new Set([
+  "minecraft:thrown_trident",
+  "minecraft:item",
+  "minecraft:player",
+]);
+
 /** EntityProjectileComponent: writable owner; shoot() logs and sets the entity velocity. */
 export class FakeProjectileComponent {
   readonly typeId = "minecraft:projectile";
@@ -1237,9 +1247,10 @@ export class FakeDimension {
     return { successCount: 1 };
   }
 
-  /** Attaches FakeProjectileComponent for PROJECTILE_TYPE_IDS; emits entitySpawn synchronously. */
+  /** Throws for NOT_SUMMONABLE_TYPE_IDS; attaches FakeProjectileComponent for PROJECTILE_TYPE_IDS; emits entitySpawn synchronously. */
   spawnEntity(identifier: string, location: Vec3, options?: { spawnEvent?: string; initialPersistence?: boolean }): FakeEntity {
     guard("Dimension.spawnEntity");
+    if (NOT_SUMMONABLE_TYPE_IDS.has(ns(identifier))) throw new Error(`EntitySpawnError: ${identifier} is not summonable`);
     const e = new FakeEntity(identifier);
     if (PROJECTILE_TYPE_IDS.has(e.typeId)) e.components.set(EntityComponentTypes.Projectile, new FakeProjectileComponent(e));
     if (options !== undefined) e.spawnOptions = options;

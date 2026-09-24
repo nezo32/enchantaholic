@@ -10,4 +10,10 @@ public interface PendingWorldMode {
 
 	/** Returns and clears the pending value; null if none (existing world, dedicated server). */
 	Boolean enchantaholic$takePendingMode();
+
+	/** Custom Enchantments button value (v0.3.0). */
+	void enchantaholic$setPendingCustom(boolean enabled);
+
+	/** Returns and clears the pending Custom Enchantments value; null if none. */
+	Boolean enchantaholic$takePendingCustom();
 }

@@ -15,7 +15,12 @@ public final class ModeCommand {
 				.executes(c -> status(c.getSource()))
 				.then(Commands.literal("on").executes(c -> set(c.getSource(), true)))
 				.then(Commands.literal("off").executes(c -> set(c.getSource(), false)))
-				.then(Commands.literal("status").executes(c -> status(c.getSource()))));
+				.then(Commands.literal("status").executes(c -> status(c.getSource())))
+				.then(Commands.literal("custom")
+						.executes(c -> customStatus(c.getSource()))
+						.then(Commands.literal("on").executes(c -> setCustom(c.getSource(), true)))
+						.then(Commands.literal("off").executes(c -> setCustom(c.getSource(), false)))
+						.then(Commands.literal("status").executes(c -> customStatus(c.getSource())))));
 	}
 
 	private static int set(CommandSourceStack source, boolean value) {
@@ -24,6 +29,22 @@ public final class ModeCommand {
 				? Component.translatableWithFallback("enchantaholic.command.on", "Enchantaholic Mode is now ON for this world")
 				: Component.translatableWithFallback("enchantaholic.command.off", "Enchantaholic Mode is now OFF for this world"), true);
 		return value ? 1 : 0;
+	}
+
+	private static int setCustom(CommandSourceStack source, boolean value) {
+		EnchantaholicMode.setCustomEnchants(source.getServer(), value);
+		source.sendSuccess(() -> value
+				? Component.translatableWithFallback("enchantaholic.command.custom.on", "Custom Enchantments are now ON for this world")
+				: Component.translatableWithFallback("enchantaholic.command.custom.off", "Custom Enchantments are now OFF for this world"), true);
+		return value ? 1 : 0;
+	}
+
+	private static int customStatus(CommandSourceStack source) {
+		boolean on = EnchantaholicMode.isCustomEnchants(source.getServer());
+		source.sendSuccess(() -> on
+				? Component.translatableWithFallback("enchantaholic.command.custom.status.on", "Custom Enchantments are ON in this world")
+				: Component.translatableWithFallback("enchantaholic.command.custom.status.off", "Custom Enchantments are OFF in this world"), false);
+		return on ? 1 : 0;
 	}
 
 	private static int status(CommandSourceStack source) {

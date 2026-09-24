@@ -18,6 +18,19 @@ public abstract class CreateWorldScreenMixin implements CreateWorldModeHolder {
 	@Unique
 	private boolean enchantaholic$mode;
 
+	@Unique
+	private boolean enchantaholic$custom;
+
+	@Override
+	public boolean enchantaholic$isCustomEnabled() {
+		return enchantaholic$custom;
+	}
+
+	@Override
+	public void enchantaholic$setCustomEnabled(boolean enabled) {
+		enchantaholic$custom = enabled;
+	}
+
 	@Override
 	public boolean enchantaholic$isModeEnabled() {
 		return enchantaholic$mode;
@@ -32,6 +45,7 @@ public abstract class CreateWorldScreenMixin implements CreateWorldModeHolder {
 			target = "Lnet/minecraft/client/gui/screens/worldselection/WorldOpenFlows;createLevelFromExistingSettings(Lnet/minecraft/world/level/storage/LevelStorageSource$LevelStorageAccess;Lnet/minecraft/server/ReloadableServerResources;Lnet/minecraft/core/LayeredRegistryAccess;Lnet/minecraft/world/level/storage/LevelDataAndDimensions$WorldDataAndGenSettings;Ljava/util/Optional;)V"))
 	private LevelStorageSource.LevelStorageAccess enchantaholic$handOffMode(LevelStorageSource.LevelStorageAccess access) {
 		((PendingWorldMode) access).enchantaholic$setPendingMode(enchantaholic$mode);
+		((PendingWorldMode) access).enchantaholic$setPendingCustom(enchantaholic$custom);
 		return access;
 	}
 }

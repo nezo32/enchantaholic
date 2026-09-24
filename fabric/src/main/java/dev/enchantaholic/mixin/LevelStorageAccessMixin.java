@@ -14,6 +14,21 @@ public abstract class LevelStorageAccessMixin implements PendingWorldMode {
 	@Unique
 	private volatile Boolean enchantaholic$pendingMode;
 
+	@Unique
+	private volatile Boolean enchantaholic$pendingCustom;
+
+	@Override
+	public void enchantaholic$setPendingCustom(boolean enabled) {
+		enchantaholic$pendingCustom = enabled;
+	}
+
+	@Override
+	public Boolean enchantaholic$takePendingCustom() {
+		Boolean value = enchantaholic$pendingCustom;
+		enchantaholic$pendingCustom = null;
+		return value;
+	}
+
 	@Override
 	public void enchantaholic$setPendingMode(boolean enabled) {
 		enchantaholic$pendingMode = enabled;

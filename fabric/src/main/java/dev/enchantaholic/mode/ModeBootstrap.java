@@ -22,12 +22,15 @@ public final class ModeBootstrap {
 
 	public static void onServerStarting(MinecraftServer server) {
 		// 1. new world from the Create World screen: the button value rides on this world's storage access
-		Boolean pending = ((PendingWorldMode) ((MinecraftServerAccessor) server).enchantaholic$getStorageSource())
-				.enchantaholic$takePendingMode();
+		PendingWorldMode access = (PendingWorldMode) ((MinecraftServerAccessor) server).enchantaholic$getStorageSource();
+		Boolean pending = access.enchantaholic$takePendingMode();
+		Boolean pendingCustom = access.enchantaholic$takePendingCustom(); // always taken: never outlives this start
 		if (pending != null) {
 			EnchantaholicMode.set(server, pending);
+			EnchantaholicMode.setCustomEnchants(server, pendingCustom != null && pendingCustom);
 			server.getDataStorage().scheduleSave(); // persist now: a crash before the first autosave must not lose the choice
-			Enchantaholic.LOGGER.info("Enchantaholic Mode {} for new world", pending ? "ON" : "OFF");
+			Enchantaholic.LOGGER.info("Enchantaholic Mode {}, Custom Enchantments {} for new world",
+					pending ? "ON" : "OFF", pendingCustom != null && pendingCustom ? "ON" : "OFF");
 			return;
 		}
 		// 2. existing world that already has mode.dat: it is authoritative

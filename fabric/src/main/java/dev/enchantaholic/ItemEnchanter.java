@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import dev.enchantaholic.core.CustomPool;
 import dev.enchantaholic.core.EnchantSelector;
+import dev.enchantaholic.custom.CustomEnchants;
 import dev.enchantaholic.core.Levels;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
@@ -20,6 +22,7 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.item.enchantment.ItemEnchantments;
+import net.minecraft.world.level.Level;
 
 /** Adapts the player inventory and the enchantment registry to {@link EnchantSelector} and applies the result. */
 public final class ItemEnchanter {
@@ -43,9 +46,17 @@ public final class ItemEnchanter {
 
 	private ItemEnchanter() {}
 
-	/** Selects over non-empty slots 0..40 and the whole ENCHANTMENT registry, applies, broadcasts. */
+	/**
+	 * Selects over non-empty slots 0..40 and the ENCHANTMENT registry, applies, broadcasts. The
+	 * enchantaholic:* (custom) enchantments are part of the pool only while this world's Custom Enchantments switch is on.
+	 */
 	public static Optional<Result> enchantRandom(Player player, RandomSource random) {
-		return enchantRandom(player, allEnchantments(player.level().registryAccess()), random);
+		return enchantRandom(player, rollPool(player.level()), random);
+	}
+
+	/** The registry, minus the custom enchantments unless they are enabled for this level's world. */
+	public static List<Holder<Enchantment>> rollPool(Level level) {
+		return CustomPool.filter(allEnchantments(level.registryAccess()), CustomEnchants::isCustom, CustomEnchants.enabled(level));
 	}
 
 	/** Same, with an explicit enchantment pool. */

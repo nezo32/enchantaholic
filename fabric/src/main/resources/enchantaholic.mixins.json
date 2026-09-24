@@ -5,6 +5,7 @@
 	"mixins": [
 		"LevelStorageAccessMixin",
 		"MinecraftServerAccessor",
+		"PlayerMixin",
 		"ProjectileMixin",
 		"ProjectileWeaponItemMixin"
 	],

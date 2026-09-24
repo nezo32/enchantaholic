@@ -89,6 +89,7 @@ public final class CustomEffects {
 
 	private static void endServerTick(MinecraftServer server) {
 		Kaboom.resetBudget();
+		Yeet.clear();
 		boolean enabled = CustomEnchants.enabled(server);
 		safely("vein miner", () -> VeinMiner.tick(enabled));
 		if (!enabled) return;

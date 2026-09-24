@@ -65,7 +65,6 @@ public final class CustomEffects {
 			VeinMiner.onBlockBreak(server, p, pos, state);
 			ChickenRain.onBlockBreak(server, p, pos);
 			MidasTouch.onBlockBreak(server, p, pos);
-			Butterfingers.onAction(p);
 		});
 	}
 
@@ -74,7 +73,7 @@ public final class CustomEffects {
 	 * because the tool must still be in hand when vanilla computes the block's drops and uses durability.
 	 */
 	public static void afterDestroyBlock(ServerPlayer player, boolean destroyed) {
-		if (true) return;
+		if (!destroyed || !active(player)) return;
 		safely("block break", () -> Butterfingers.onAction(player));
 	}
 

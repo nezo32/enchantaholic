@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as mc from "@minecraft/server";
 import { handleCustom, handleNotify, handleToggle, registerCommands } from "../../src/adapters/command";
 import { isCustomEnabled, isEnabled } from "../../src/adapters/state";
@@ -21,10 +21,23 @@ import {
   CustomCommandStatus,
   FakeCustomCommandRegistry,
   FakeEntity,
+  FakePlayer,
   system,
   world,
 } from "../fakes/minecraft-server";
 import { resetAll } from "./helpers";
+import { renderRaw } from "../fakes/lang";
+
+type Result = mc.CustomCommandResult;
+
+/** Invokes the notify command as `p`; a player's reply arrives as a chat message, so it is folded back into `message`. */
+function asPlayer(reg: FakeCustomCommandRegistry, p: FakePlayer, ...args: unknown[]): Result {
+  const before = p.messages.length;
+  const r = reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: p }, ...args) as Result;
+  expect(r.message, "player callers get no string message").toBeUndefined();
+  expect(p.messages.length).toBe(before + 1);
+  return { status: r.status, message: p.texts.at(-1)! };
+}
 
 function registered() {
   const reg = new FakeCustomCommandRegistry();
@@ -61,7 +74,7 @@ describe("command", () => {
     system.flushRuns();
     expect(isEnabled()).toBe(false);
     expect(world.getDynamicProperty(PROP_ENABLED)).toBe(false);
-    expect(world.messages).toEqual(["Enchantaholic Mode: §cOFF"]);
+    expect(world.texts).toEqual(["Enchantaholic Mode: §cOFF"]);
     reg.invoke(COMMAND_NAME, {});
     system.flushRuns();
     expect(isEnabled()).toBe(true);
@@ -75,7 +88,7 @@ describe("command", () => {
     system.flushRuns();
     expect(isEnabled()).toBe(true);
     expect(world.getDynamicProperty(PROP_ENABLED)).toBe(true);
-    expect(world.messages).toEqual(["Enchantaholic Mode: §cOFF", "Enchantaholic Mode: §aON"]);
+    expect(world.texts).toEqual(["Enchantaholic Mode: §cOFF", "Enchantaholic Mode: §aON"]);
   });
 
   it("on/off are idempotent", () => {
@@ -138,8 +151,8 @@ describe("notify command", () => {
   it("status for a new player shows both ON", () => {
     const reg = registered();
     const player = makePlayer();
-    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "status")).toEqual(ok(bothOn));
-    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "status", "off")).toEqual(ok(bothOn));
+    expect(asPlayer(reg, player, "status")).toEqual(ok(bothOn));
+    expect(asPlayer(reg, player, "status", "off")).toEqual(ok(bothOn));
     system.flushRuns();
     expect(player.props.has(PROP_NOTIFY)).toBe(false);
   });
@@ -147,29 +160,29 @@ describe("notify command", () => {
   it("sound off is cached at once and persisted after system.run", () => {
     const reg = registered();
     const player = makePlayer();
-    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "sound", "off")).toEqual(
+    expect(asPlayer(reg, player, "sound", "off")).toEqual(
       ok("Enchant sound: §cOFF"),
     );
     expect(player.props.has(PROP_NOTIFY)).toBe(false);
-    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "status"))).toBe(
+    expect(msg(asPlayer(reg, player, "status"))).toBe(
       "Enchant sound: §cOFF§r, enchant message: §aON",
     );
     system.flushRuns();
     expect(player.props.get(PROP_NOTIFY)).toBe('{"sound":false,"message":true}');
     expect(world.messages).toHaveLength(0);
-    expect(player.messages).toHaveLength(0);
+    expect(player.texts).toEqual(["Enchant sound: §cOFF", "Enchant sound: §cOFF§r, enchant message: §aON"]);
   });
 
   it("message on/off is idempotent", () => {
     const reg = registered();
     const player = makePlayer();
-    reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "message", "off");
-    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "message", "off"))).toBe(
+    asPlayer(reg, player, "message", "off");
+    expect(msg(asPlayer(reg, player, "message", "off"))).toBe(
       "Enchant message: §cOFF",
     );
     system.flushRuns();
     expect(player.props.get(PROP_NOTIFY)).toBe('{"sound":true,"message":false}');
-    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "message", "on"))).toBe(
+    expect(msg(asPlayer(reg, player, "message", "on"))).toBe(
       "Enchant message: §aON",
     );
     system.flushRuns();
@@ -179,11 +192,11 @@ describe("notify command", () => {
   it("no value flips; two flips in the same tick cancel out", () => {
     const reg = registered();
     const player = makePlayer();
-    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "message"))).toBe("Enchant message: §cOFF");
+    expect(msg(asPlayer(reg, player, "message"))).toBe("Enchant message: §cOFF");
     system.flushRuns();
     expect(player.props.get(PROP_NOTIFY)).toBe('{"sound":true,"message":false}');
-    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "sound"))).toBe("Enchant sound: §cOFF");
-    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "sound"))).toBe("Enchant sound: §aON");
+    expect(msg(asPlayer(reg, player, "sound"))).toBe("Enchant sound: §cOFF");
+    expect(msg(asPlayer(reg, player, "sound"))).toBe("Enchant sound: §aON");
     system.flushRuns();
     expect(player.props.get(PROP_NOTIFY)).toBe('{"sound":true,"message":false}');
   });
@@ -192,9 +205,9 @@ describe("notify command", () => {
     const reg = registered();
     const a = makePlayer({ name: "Alex" });
     const b = makePlayer({ name: "Steve" });
-    reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: a }, "sound", "off");
+    asPlayer(reg, a, "sound", "off");
     system.flushRuns();
-    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: b }, "status"))).toBe(bothOn);
+    expect(msg(asPlayer(reg, b, "status"))).toBe(bothOn);
     expect(b.props.has(PROP_NOTIFY)).toBe(false);
   });
 
@@ -219,9 +232,12 @@ describe("notify command", () => {
       status: CustomCommandStatus.Failure,
       message: "Usage: /enchantaholic:notify <sound|message|status> [on|off]",
     };
-    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player })).toEqual(usage);
-    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "volume")).toEqual(usage);
-    expect(handleNotify({ sourceEntity: asReal<mc.Entity>(player) }, undefined, "off")).toEqual(usage);
+    expect(asPlayer(reg, player)).toEqual(usage);
+    expect(asPlayer(reg, player, "volume")).toEqual(usage);
+    expect(handleNotify({ sourceEntity: asReal<mc.Entity>(player) }, undefined, "off")).toEqual({
+      status: CustomCommandStatus.Failure,
+    });
+    expect(player.texts.at(-1)).toBe(usage.message);
     system.flushRuns();
     expect(player.props.has(PROP_NOTIFY)).toBe(false);
     expect(world.messages).toHaveLength(0);
@@ -266,7 +282,7 @@ describe("custom command", () => {
     system.flushRuns();
     expect(world.getDynamicProperty(PROP_CUSTOM_ENABLED)).toBe(true);
     expect(isCustomEnabled()).toBe(true);
-    expect(world.messages).toEqual([ON]);
+    expect(world.texts).toEqual([ON]);
     expect(isEnabled()).toBe(true); // the mode is untouched
   });
 
@@ -278,7 +294,7 @@ describe("custom command", () => {
     system.flushRuns();
     expect(isCustomEnabled()).toBe(false);
     expect(world.getDynamicProperty(PROP_CUSTOM_ENABLED)).toBe(false);
-    expect(world.messages).toEqual([ON, OFF]);
+    expect(world.texts).toEqual([ON, OFF]);
   });
 
   it("undefined or unknown argument → Failure with usage, nothing written", () => {
@@ -299,8 +315,56 @@ describe("custom command", () => {
     expect(m.startsWith(`${ON}\n`)).toBe(true);
     expect(m).toContain("/enchantaholic:toggle on");
     system.flushRuns();
-    expect(world.messages).toEqual(["Enchantaholic Mode: §cOFF", ON]);
+    expect(world.texts).toEqual(["Enchantaholic Mode: §cOFF", ON]);
     expect(msg(reg.invoke(CUSTOM_COMMAND_NAME, {}, "off"))).toBe(OFF);
   });
 });
 
+
+describe("localized replies", () => {
+  beforeEach(() => void resetAll());
+
+  it("a player caller gets translatable RawMessages (rendered per client language), no string message", () => {
+    const reg = registered();
+    const p = makePlayer();
+    const r = reg.invoke(COMMAND_NAME, { sourceEntity: p }, "status") as mc.CustomCommandResult;
+    expect(r).toEqual({ status: CustomCommandStatus.Success });
+    expect(p.messages).toEqual([
+      { translate: "enchantaholic.mode.status", with: { rawtext: [{ translate: "enchantaholic.state.on" }] } },
+    ]);
+    expect(renderRaw(p.messages[0], "ru")).toBe("Режим Enchantaholic: §aВкл");
+    reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: p }, "sound", "off");
+    expect(renderRaw(p.messages[1], "ru")).toBe("Звук зачарования: §cВыкл");
+    reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: p });
+    expect(renderRaw(p.messages[2], "ru")).toBe("Использование: /enchantaholic:notify <sound|message|status> [on|off]");
+  });
+
+  it("toggle and custom by a player: reply to the player, translatable broadcast to everyone", () => {
+    const reg = registered();
+    const p = makePlayer();
+    reg.invoke(COMMAND_NAME, { sourceEntity: p }, "off");
+    expect(p.texts).toEqual(["Enchantaholic Mode: §cOFF"]);
+    const r = reg.invoke(CUSTOM_COMMAND_NAME, { sourceEntity: p }, "on") as mc.CustomCommandResult;
+    expect(r.message).toBeUndefined();
+    expect(p.texts[1]).toMatch(/^Custom Enchantments are now §aON§r for this world\n§7\(Enchantaholic Mode is §cOFF/);
+    expect(renderRaw(p.messages[1], "ru")).toMatch(/^Особые зачарования теперь §aВкл§r в этом мире\n§7\(Режим Enchantaholic §cВыкл/);
+    system.flushRuns();
+    expect(world.messages.every((m) => typeof m === "object")).toBe(true);
+    expect(world.messages.map((m) => renderRaw(m, "ru"))).toEqual([
+      "Режим Enchantaholic: §cВыкл",
+      "Особые зачарования теперь §aВкл§r в этом мире",
+    ]);
+  });
+
+  it("falls back to the English string when sending to the player throws", () => {
+    const reg = registered();
+    const p = makePlayer();
+    vi.spyOn(p, "sendMessage").mockImplementation(() => {
+      throw new Error("gone");
+    });
+    expect(reg.invoke(COMMAND_NAME, { sourceEntity: p }, "status")).toEqual({
+      status: CustomCommandStatus.Success,
+      message: "Enchantaholic Mode: §aON",
+    });
+  });
+});

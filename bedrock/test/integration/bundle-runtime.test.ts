@@ -39,7 +39,7 @@ import {
   system,
   VANILLA_ENCHANT_MAX,
   world,
-  type FakeItemStack,
+  FakeItemStack,
   type FakePlayer,
 } from "../fakes/minecraft-server";
 
@@ -343,6 +343,20 @@ describe("bundled main.js in a simulated runtime", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it("managed lore is a translatable RawMessage (Russian client) and legacy English lines keep working", () => {
+    const legacy = `${LORE_TAG}§dUnbreaking VI`; // as written by v0.3.0
+    const p = makePlayer({
+      inv: { 0: makeItem("minecraft:book", { amount: 2, enchantable: { compatible: ["unbreaking"] }, levels: { unbreaking: 3 }, lore: ["§7Old", legacy] }) },
+    });
+    breakAndDiff(p); // stackable: the legacy lore line is the only store → VII
+    const item = p.container.peek(0) as FakeItemStack;
+    expect(item.lore).toEqual(["§7Old", `${LORE_TAG}§dUnbreaking VII`]);
+    expect(item.loreRu).toEqual(["§7Old", `${LORE_TAG}§dНеразрушимость VII`]);
+    expect(item.rawLore[0]).toBe("§7Old");
+    expect(item.rawLore[1]).toMatchObject({ rawtext: [{ text: `${LORE_TAG}§d` }, { translate: "enchantment.durability" }, { text: " VII" }] });
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("lunge only ever lands on spears (500 breaks, 'all'-compatible book + sword + spear)", () => {
     const p = makePlayer({ inv: { 0: sword(), 1: spear("diamond"), 2: enchantedBook() } });
     for (let i = 0; i < 500; i++) breakAndDiff(p);
@@ -355,7 +369,7 @@ describe("bundled main.js in a simulated runtime", () => {
     expect(runCommand("status").message).toContain("ON");
     runCommand("off");
     expect(world.getDynamicProperty("enchantaholic:enabled")).toBe(false);
-    expect(world.messages.at(-1)).toContain("OFF");
+    expect(world.texts.at(-1)).toContain("OFF");
     for (let i = 0; i < 20; i++) expect(breakAndDiff(p)).toEqual([]);
     runCommand("off"); // idempotent
     expect(world.getDynamicProperty("enchantaholic:enabled")).toBe(false);
@@ -372,7 +386,8 @@ describe("bundled main.js in a simulated runtime", () => {
     const p = makePlayer({ inv: { 0: sword() } });
     world.players.push(p);
     const r = registry.invoke(NOTIFY, { sourceEntity: p }, "message", "off") as { status: number; message?: string };
-    expect(r).toEqual({ status: 0, message: "Enchant message: §cOFF" });
+    expect(r).toEqual({ status: 0 }); // players get the reply as a translatable chat message
+    expect(p.texts).toEqual(["Enchant message: §cOFF"]);
     system.flushRuns();
     expect(p.getDynamicProperty(NOTIFY)).toBe('{"sound":true,"message":false}');
     const before = state(p.container.peek(0));
@@ -380,8 +395,9 @@ describe("bundled main.js in a simulated runtime", () => {
     expect(JSON.stringify(state(p.container.peek(0)))).not.toBe(JSON.stringify(before));
     expect(p.onScreenDisplay.actionBars).toHaveLength(0);
     expect(p.sounds).toHaveLength(1);
-    const s = registry.invoke(NOTIFY, { sourceEntity: p }, "status") as { message?: string };
-    expect(s.message).toBe("Enchant sound: §aON§r, enchant message: §cOFF");
+    registry.invoke(NOTIFY, { sourceEntity: p }, "status");
+    expect(p.texts.at(-1)).toBe("Enchant sound: §aON§r, enchant message: §cOFF");
+    expect(p.messages.every((m) => typeof m === "object")).toBe(true);
     expect(warn).not.toHaveBeenCalled();
   });
 
@@ -429,5 +445,14 @@ describe("bundled main.js in a simulated runtime", () => {
     expect(p.effects.get("minecraft:haste")?.amplifier).toBe(1);
     expect(p.effects.get("minecraft:haste")?.showParticles).toBe(false);
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  // Must stay last: the bundle keeps the text-lore fallback for the rest of its (module) lifetime.
+  it("falls back to English string lore when the engine rejects RawMessage lore", () => {
+    FakeItemStack.rejectRawLore = true;
+    const p = makePlayer({ inv: { 0: makeItem("minecraft:book", { amount: 2, enchantable: { compatible: ["unbreaking"] } }) } });
+    for (let i = 0; i < 5; i++) breakAndDiff(p);
+    expect((p.container.peek(0) as FakeItemStack).rawLore).toEqual([`${LORE_TAG}§dUnbreaking V`]);
+    FakeItemStack.rejectRawLore = false;
   });
 });

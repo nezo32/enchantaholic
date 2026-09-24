@@ -6,6 +6,7 @@ import {
   notifyStatusText,
   parseNotifyPrefs,
 } from "../../src/core/notify";
+import { renderRaw } from "../fakes/lang";
 
 describe("notify prefs", () => {
   it("DEFAULT is both ON and frozen", () => {
@@ -43,11 +44,18 @@ describe("notify prefs", () => {
   });
 
   it("formats setting and status texts", () => {
-    expect(notifySettingText("sound", true)).toBe("Enchant sound: §aON");
-    expect(notifySettingText("sound", false)).toBe("Enchant sound: §cOFF");
-    expect(notifySettingText("message", true)).toBe("Enchant message: §aON");
-    expect(notifySettingText("message", false)).toBe("Enchant message: §cOFF");
-    expect(notifyStatusText({ sound: true, message: false })).toBe("Enchant sound: §aON§r, enchant message: §cOFF");
-    expect(notifyStatusText({ sound: false, message: true })).toBe("Enchant sound: §cOFF§r, enchant message: §aON");
+    const en = (m: unknown) => renderRaw(m);
+    const ru = (m: unknown) => renderRaw(m, "ru");
+    expect(en(notifySettingText("sound", true))).toBe("Enchant sound: §aON");
+    expect(en(notifySettingText("sound", false))).toBe("Enchant sound: §cOFF");
+    expect(en(notifySettingText("message", true))).toBe("Enchant message: §aON");
+    expect(en(notifySettingText("message", false))).toBe("Enchant message: §cOFF");
+    expect(en(notifyStatusText({ sound: true, message: false }))).toBe("Enchant sound: §aON§r, enchant message: §cOFF");
+    expect(en(notifyStatusText({ sound: false, message: true }))).toBe("Enchant sound: §cOFF§r, enchant message: §aON");
+    expect(ru(notifySettingText("sound", true))).toBe("Звук зачарования: §aВкл");
+    expect(ru(notifySettingText("message", false))).toBe("Сообщение о зачаровании: §cВыкл");
+    expect(ru(notifyStatusText({ sound: true, message: false }))).toBe(
+      "Звук зачарования: §aВкл§r, сообщение о зачаровании: §cВыкл",
+    );
   });
 });

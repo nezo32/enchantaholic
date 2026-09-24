@@ -1,6 +1,7 @@
 # Enchantaholic for Bedrock
 
-This is the Bedrock Edition version of [Enchantaholic](../README.md), built as a behavior pack that uses the Script API
+This is the Bedrock Edition version of [Enchantaholic](../README.md), built as a behavior pack (plus a small resource
+pack with its texts) that uses the Script API
 (`@minecraft/server` 2.10.0, no experiments). It needs Bedrock **26.50 or newer** (`min_engine_version` 1.26.50).
 
 With the pack active, each block you break adds one random enchantment level to a random item in your inventory.
@@ -10,10 +11,20 @@ With the pack active, each block you break adds one random enchantment level to 
 1. Download `enchantaholic-<version>.mcaddon` from the
    [GitHub releases](https://github.com/nezo32/enchantaholic/releases) or from CurseForge.
 2. Open the file (double-click, or "Open with" Minecraft). Minecraft imports it.
-3. Create a world. Under **Behavior Packs**, activate **Enchantaholic**. The mode is on as soon as the world loads.
+3. Create a world. Under **Behavior Packs**, activate **Enchantaholic**. Minecraft adds the paired **Enchantaholic**
+   resource pack with it (it holds the texts). The mode is on as soon as the world loads.
 
-You can also add the pack to an existing world the same way. Every build also produces an `enchantaholic-<version>.mcpack`
-file in `dist/`, but releases attach only the `.mcaddon`.
+You can also add the pack to an existing world the same way. Every build also produces `enchantaholic-<version>.mcpack`
+(behavior pack) and `enchantaholic-<version>-resources.mcpack` (resource pack) in `dist/`, but releases attach only the
+`.mcaddon`, which contains both.
+
+### Languages
+
+Every message (actionbar, command replies, chat broadcasts) and the enchantment names in lore are sent as translation
+keys, so each player sees them in their own game language. English and Russian are included
+(`resource_pack/texts/en_US.lang`, `ru_RU.lang`); vanilla enchantment names come from the game's own translations.
+Replies to commands run from a command block or the server console stay in English, because the command API only
+accepts plain text there.
 
 > Activating any behavior pack **disables achievements** for that world. Minecraft does this for every behavior pack,
 > and the pack cannot change it.
@@ -166,14 +177,14 @@ npm ci
 npm run typecheck      # tsc for src and tests
 npm run lint           # eslint
 npm test               # vitest (unit tests, fakes for @minecraft/server, bundle and manifest checks)
-npm run build          # esbuild bundle → build/Enchantaholic_BP
-npm run package        # build + dist/enchantaholic-<version>.mcaddon and .mcpack
+npm run build          # esbuild bundle → build/Enchantaholic_BP, texts → build/Enchantaholic_RP
+npm run package        # build + dist/enchantaholic-<version>.mcaddon (both packs), .mcpack and -resources.mcpack
 DEBUG=1 npm run build  # debug build (logs skipped block ids to the content log)
 npm run clean          # remove build/ and dist/
 ```
 
 `VERSION=1.2.3 npm run package` stamps a version into the manifest and the file names. Leave the versions in
-`pack/manifest.json` and `package.json` as they are: the release tag sets the real version (see
+`pack/manifest.json`, `resource_pack/manifest.json` and `package.json` as they are: the release tag sets the real version (see
 [docs/ci/RELEASING.md](../docs/ci/RELEASING.md)).
 
 Layout:
@@ -185,7 +196,8 @@ Layout:
 | `src/core/custom/` | Pure custom-enchantment logic (v0.3.0): the roster of 11 ids and names (`roster.ts`), caps and tuning constants (`tuning.ts`), per-level formulas (`math.ts`), level helpers (`levels.ts`) and the Vein Miner walk and deny list (`vein.ts`) |
 | `src/adapters/custom/` | Custom-enchantment effects: the switch gate (`gate.ts`), break/hit/projectile dispatchers, one file per enchantment, Barrage copy tracking (`copies.ts`) and launcher snapshots for thrown tridents (`shots.ts`) |
 | `src/main.ts` | Entry point |
-| `pack/` | `manifest.json`, `pack_icon.png`, `texts/` |
+| `pack/` | Behavior pack: `manifest.json`, `pack_icon.png`, `texts/` (pack name and description) |
+| `resource_pack/` | Resource pack: `manifest.json`, `pack_icon.png`, `texts/` with every script message and custom enchantment name (`en_US`, `ru_RU`). New keys go into both `.lang` files and `EN` in `src/core/i18n.ts` (a test keeps them in sync) |
 | `test/` | vitest suites and the `@minecraft/server` fake |
 | `scripts/` | Build and packaging (esbuild, reproducible zips) |
 
@@ -222,3 +234,8 @@ as an operator. Use a `DEBUG=1` build.
     `Vein Miner I`-style lore line (red for the curses), also on dirt or sticks. Vein Miner, Barrage copies (removed on
     impact), Kaboom (no block damage), Magnet, Moon Boots (no fall damage) and Party Popper work. After `off`, nothing
     new rolls and every custom effect stops, and the lore lines stay.
+16. Languages: with the game set to Русский, the actionbar (`✦ Алмазная кирка → Эффективность VI`), command replies
+    (`Режим Enchantaholic: Вкл`), the `/enchantaholic:custom on` broadcast and the lore lines (`Острота VIII`,
+    `Жилокоп III`) are in Russian; an English player on the same server sees them in English at the same time. Lore
+    written by v0.3.0 (English lines) is still read after the update and turns localized on the next roll. The resource
+    pack is listed under **Resource Packs** of the world after activating the behavior pack.

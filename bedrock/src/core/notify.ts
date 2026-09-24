@@ -1,4 +1,5 @@
 /** Per-player notification preferences (enchant sound / actionbar message). Pure: no @minecraft/* imports. */
+import { K, onOff, tr, type Msg } from "./i18n";
 
 export interface NotifyPrefs {
   readonly sound: boolean;
@@ -30,15 +31,12 @@ export function encodeNotifyPrefs(p: NotifyPrefs): string {
   return JSON.stringify({ sound: p.sound, message: p.message });
 }
 
-const LABEL: Record<NotifySetting, string> = { sound: "sound", message: "message" };
-const onOff = (on: boolean): string => (on ? "§aON" : "§cOFF");
-
 /** "Enchant sound: §aON" / "Enchant message: §cOFF" */
-export function notifySettingText(setting: NotifySetting, on: boolean): string {
-  return `Enchant ${LABEL[setting]}: ${onOff(on)}`;
+export function notifySettingText(setting: NotifySetting, on: boolean): Msg {
+  return tr(setting === "sound" ? K.notifySound : K.notifyMessage, onOff(on));
 }
 
 /** "Enchant sound: §aON§r, enchant message: §cOFF" */
-export function notifyStatusText(p: NotifyPrefs): string {
-  return `Enchant sound: ${onOff(p.sound)}§r, enchant message: ${onOff(p.message)}`;
+export function notifyStatusText(p: NotifyPrefs): Msg {
+  return tr(K.notifyStatus, onOff(p.sound), onOff(p.message));
 }

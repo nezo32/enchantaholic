@@ -177,7 +177,7 @@ describe("bundled main.js: Custom Enchantments setting", () => {
     expect(world.props.has(PROP_CUSTOM_ENABLED)).toBe(false); // restricted: not yet
     system.flushRuns();
     expect(world.props.get(PROP_CUSTOM_ENABLED)).toBe(true);
-    expect(world.messages).toContain("Custom Enchantments are now §aON§r for this world");
+    expect(world.texts).toContain("Custom Enchantments are now §aON§r for this world");
     expect(custom("status").message).toBe("Custom Enchantments: §aON");
 
     const d = dirtOnlyPlayer();

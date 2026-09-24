@@ -21,7 +21,6 @@ export const FEEDBACK_SOUND_PITCH = 1.6;
 export const COMMAND_NAME = "enchantaholic:toggle";
 /** Enum values: on | off | status. */
 export const COMMAND_ENUM = "enchantaholic:state";
-export const MODE_LABEL = "Enchantaholic Mode";
 /** Above this, levels are rendered as decimal digits. */
 export const ROMAN_MAX = 3999;
 /** Item ids forced non-enchantable (see spec §9.5). */
@@ -38,4 +37,3 @@ export const PROP_CUSTOM_ENABLED = "enchantaholic:custom";
 /** Item dynamic property (JSON {id: level}) with custom enchant levels; non-stackable items only. */
 export const PROP_CUSTOM_LEVELS = "enchantaholic:custom_levels";
 export const CUSTOM_COMMAND_NAME = "enchantaholic:custom";
-export const CUSTOM_LABEL = "Custom Enchantments";

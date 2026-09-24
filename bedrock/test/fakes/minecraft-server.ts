@@ -12,13 +12,16 @@
  *       system.tickIntervals(n)  invoke every live runInterval callback n times
  *       system.advance(n)        simulate n game ticks (runs, timeouts, intervals by period; currentTick++)
  *       world.getDimension(id)   FakeDimension with a sparse block map, entity list and call logs
- *       world.messages           world.sendMessage log;  world.players (getAllPlayers source)
+ *       world.messages           world.sendMessage log (world.texts / player.texts: rendered in English, see lang.ts);
+ *                                world.players (getAllPlayers source)
+ *       item.rawLore / item.lore stored lore lines / the same rendered in English (item.loreRu: Russian)
  *   - Classes: FakeItemStack (exported also as ItemStack), FakeEnchantable, FakeContainer,
  *     FakeEquippable, FakeEntity, FakePlayer, FakeTypeFamily, FakeCustomCommandRegistry, FakeDimension,
  *     FakeBlock, FakeProjectileComponent, FakeItemEntityComponent, FakeDurability.
  *   - Cast a fake to the real type with `asReal<Player>(fake)` (see builders.ts helpers).
  */
 import type * as mc from "@minecraft/server";
+import { renderRaw } from "./lang";
 
 // ───────────────────────────── enums (string values match 2.10.0) ─────────────────────────────
 
@@ -560,13 +563,32 @@ export interface FakeItemOptions {
   maxAmount?: number;
   nameTag?: string;
   localizationKey?: string;
-  lore?: string[];
+  lore?: FakeLoreLine[];
   enchantable?: FakeEnchantable;
   tags?: string[];
 }
 
 export const LORE_LIMIT_LINES = 20;
 export const LORE_LIMIT_CHARS = 50;
+
+/** A lore line as setLore takes it (string or RawMessage). */
+export type FakeLoreLine = string | object;
+
+/** Text parts only (translate dropped): an assumption for what getLore() returns for RawMessage lines. */
+function textOnly(line: unknown): string {
+  if (typeof line === "string") return line;
+  if (typeof line !== "object" || line === null) return "";
+  const m = line as { text?: string; rawtext?: unknown[] };
+  return (m.text ?? "") + (m.rawtext ?? []).map(textOnly).join("");
+}
+
+function isRawMessage(line: unknown): boolean {
+  if (typeof line !== "object" || line === null || Array.isArray(line)) return false;
+  const keys = Object.keys(line);
+  if (keys.length === 0 || !keys.every((k) => ["text", "translate", "with", "rawtext", "score"].includes(k))) return false;
+  const m = line as { rawtext?: unknown };
+  return m.rawtext === undefined || (Array.isArray(m.rawtext) && m.rawtext.every(isRawMessage));
+}
 
 export class FakeItemStack {
   readonly typeId: string;
@@ -578,7 +600,8 @@ export class FakeItemStack {
   lockMode = "none";
   readonly weight = 1;
   enchantable: FakeEnchantable | undefined;
-  lore: string[] = [];
+  /** Stored lore lines exactly as set (strings and RawMessages). */
+  rawLore: FakeLoreLine[] = [];
   readonly props = new Map<string, boolean | number | string | object>();
   readonly tags: string[];
   /** Extra components by id (besides minecraft:enchantable). */
@@ -591,7 +614,7 @@ export class FakeItemStack {
     this.amount = amount;
     this.localizationKey = opts.localizationKey ?? `item.${this.typeId.slice(this.typeId.indexOf(":") + 1)}.name`;
     if (opts.nameTag !== undefined) this.nameTag = opts.nameTag;
-    if (opts.lore) this.lore = [...opts.lore];
+    if (opts.lore) this.rawLore = structuredClone(opts.lore);
     this.enchantable = opts.enchantable;
     this.tags = [...(opts.tags ?? [])];
   }
@@ -626,24 +649,50 @@ export class FakeItemStack {
     return this.tags.includes(tag);
   }
 
+  /** Test view: every line as an English-speaking client reads it (RawMessages rendered). Setter stores lines as given. */
+  get lore(): string[] {
+    return this.rawLore.map((l) => renderRaw(l, "en"));
+  }
+
+  set lore(lines: FakeLoreLine[]) {
+    this.rawLore = structuredClone(lines);
+  }
+
+  /** Test view in Russian. */
+  get loreRu(): string[] {
+    return this.rawLore.map((l) => renderRaw(l, "ru"));
+  }
+
+  /** Strings as is; RawMessage lines as their text parts only (the real behavior is undocumented). */
   getLore(): string[] {
-    return [...this.lore];
+    return this.rawLore.map(textOnly);
   }
 
-  getRawLore(): Array<{ text: string }> {
-    return this.lore.map((text) => ({ text }));
+  /** Like 2.10.0: string lines are wrapped as `{ text }`, RawMessage lines returned as stored. */
+  getRawLore(): mc.RawMessage[] {
+    return this.rawLore.map((l) => (typeof l === "string" ? { text: l } : (structuredClone(l) as mc.RawMessage)));
   }
 
-  /** Enforces the 20 lines × 50 chars limit like the engine (throws on violation). */
-  setLore(loreList?: Array<string | object>): void {
+  /** When true, setLore rejects RawMessage lines (simulates an engine that does not accept them). */
+  static rejectRawLore = false;
+
+  /**
+   * Enforces the 20 lines × 50 chars limit like the engine (throws on violation). For RawMessage lines the
+   * limit is checked on the English rendering (the engine's exact rule is undocumented).
+   */
+  setLore(loreList?: FakeLoreLine[]): void {
     guard("ItemStack.setLore");
     const list = loreList ?? [];
     if (list.length > LORE_LIMIT_LINES) throw new Error(`Lore has ${list.length} lines (max ${LORE_LIMIT_LINES})`);
     for (const line of list) {
-      if (typeof line !== "string") throw new TypeError("FakeItemStack.setLore only supports strings");
-      if (line.length > LORE_LIMIT_CHARS) throw new Error(`Lore line too long (${line.length} > ${LORE_LIMIT_CHARS})`);
+      if (typeof line !== "string") {
+        if (FakeItemStack.rejectRawLore) throw new TypeError("RawMessage lore is not supported (simulated)");
+        if (!isRawMessage(line)) throw new TypeError(`Invalid RawMessage lore line ${JSON.stringify(line)}`);
+      }
+      const len = renderRaw(line, "en").length;
+      if (len > LORE_LIMIT_CHARS) throw new Error(`Lore line too long (${len} > ${LORE_LIMIT_CHARS})`);
     }
-    this.lore = [...(list as string[])];
+    this.rawLore = structuredClone(list);
   }
 
   private assertPropsAllowed(): void {
@@ -681,7 +730,7 @@ export class FakeItemStack {
       this.isStackable &&
       other.typeId === this.typeId &&
       other.nameTag === this.nameTag &&
-      JSON.stringify(other.lore) === JSON.stringify(this.lore)
+      JSON.stringify(other.rawLore) === JSON.stringify(this.rawLore)
     );
   }
 
@@ -693,7 +742,7 @@ export class FakeItemStack {
     const c = new FakeItemStack(this.typeId, this.amount, {
       maxAmount: this.maxAmount,
       localizationKey: this.localizationKey,
-      lore: this.lore,
+      lore: this.rawLore,
       tags: this.tags,
       ...(this.enchantable ? { enchantable: this.enchantable.clone() } : {}),
       ...(this.nameTag !== undefined ? { nameTag: this.nameTag } : {}),
@@ -1113,6 +1162,11 @@ export class FakePlayer extends FakeEntity {
   sendMessage(message: unknown): void {
     this.messages.push(message);
   }
+
+  /** `messages` as an English-speaking client reads them. */
+  get texts(): string[] {
+    return this.messages.map((m) => renderRaw(m, "en"));
+  }
 }
 
 // ───────────────────────────── blocks / dimensions ─────────────────────────────
@@ -1406,6 +1460,11 @@ class FakeWorld {
     this.messages.push(message);
   }
 
+  /** `messages` as an English-speaking client reads them. */
+  get texts(): string[] {
+    return this.messages.map((m) => renderRaw(m, "en"));
+  }
+
   _reset(): void {
     this.afterEvents = signalBag();
     this.beforeEvents = signalBag(restrictedSignals);
@@ -1516,6 +1575,7 @@ export const system = new FakeSystem();
 /** Reset all fake global state (call in beforeEach). */
 export function resetFakes(): void {
   execMode = "normal";
+  FakeItemStack.rejectRawLore = false;
   world._reset();
   system._reset();
   _setEnchantFixture(VANILLA_ENCHANT_MAX);

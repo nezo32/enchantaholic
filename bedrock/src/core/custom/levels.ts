@@ -1,10 +1,10 @@
 /** Pure helpers for custom enchantment levels. */
 import { decodeLevels } from "../level-codec";
-import { splitLore } from "../lore";
+import { splitLore, type LoreLine } from "../lore";
 import { isCustomId, type CustomId } from "./roster";
 
 /** Custom levels from managed lore lines, overlaid by the decoded dynprop (non-stackables only). Unknown ids dropped. */
-export function customLevelsFrom(lore: readonly string[], rawProp: unknown, stackable: boolean): Map<CustomId, number> {
+export function customLevelsFrom(lore: readonly LoreLine[], rawProp: unknown, stackable: boolean): Map<CustomId, number> {
   const out = new Map<CustomId, number>();
   for (const [id, level] of splitLore(lore).managed) if (isCustomId(id)) out.set(id, level);
   if (!stackable) {

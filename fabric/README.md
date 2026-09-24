@@ -38,6 +38,7 @@ timeout 300 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEO_FORCE_EGL=1 ./grad
 | `src/main/java/dev/enchantaholic/net/` | `EnchantedPayload`, the `enchantaholic:enchanted` server-to-client payload that carries the enchant message to clients that have the mod. |
 | `src/main/java/dev/enchantaholic/mixin/` | Common mixins: a duck on `LevelStorageSource.LevelStorageAccess` that carries the Create World choices to the integrated server, a `MinecraftServer` accessor, and the Barrage/Kaboom/Yeet hooks (`ProjectileWeaponItemMixin`, `ProjectileMixin`, `PlayerMixin`). |
 | `src/client/` | The Create World toggles: `GameTabMixin` adds the **Enchantaholic Mode** and **Custom Enchantments** buttons, `CreateWorldScreenMixin` holds its value and hands it to the new world. Notification settings: `NotifyConfig` (loads/saves `config/enchantaholic.json` via the pure `core/NotifySettings`), `NotifyClient` (payload receiver), `NotifySettingsScreen`, `ModMenuIntegration` (Mod Menu entrypoint only) and `NotifyCommand` (`/enchantaholic-notify`). |
+| `src/main/resources/assets/enchantaholic/lang/` | `en_us.json` and `ru_ru.json` (same keys; see [Languages](#languages)). |
 | `src/test/` | JUnit tests. |
 | `src/gametest/` | Server and client gametests. This is a separate test mod, `enchantaholic-gametest`, and it is never packaged. |
 
@@ -48,6 +49,12 @@ timeout 300 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEO_FORCE_EGL=1 ./grad
 - Lunge is only rolled on spears. Enchantments are not checked for compatibility with the item. Levels are capped at 255, the vanilla codec limit.
 - Custom Enchantments (v0.3.0) is a second per-world switch in the same `mode.dat` (`customEnchants`, off by default; a `mode.dat` without the field reads as off). Set it with the Create World → Game button **Custom Enchantments** (under Enchantaholic Mode) or `/enchantaholic custom on|off|status` (op level 2; bare `custom` = status, result 1 = ON, 0 = OFF). While it is off, the 11 `enchantaholic:*` enchantments are left out of the roll pool (`ItemEnchanter.rollPool`, pure filter in `core/CustomPool`) and their effects do nothing; items keep them. It is independent of Enchantaholic Mode, but customs only arrive through the same block-break rolls, so the mode has to be on for them to roll.
 - Custom effects are server-side (`custom/CustomEffects`), gated by the switch and skipped for fake players and while another effect runs (so Vein Miner breaks never roll or chain). Caps live in `core/CustomMath`: Vein Miner 1024 blocks at 64 per tick (one vein per player), Barrage 512 copies, Kaboom power 8 with at most 64 explosions and 20 ms of explosion work per server tick, Magnet radius 24 and 256 entities per pulse, Moon Boots amplifier 10. Effect exceptions are caught; the first is logged at error level, the rest at debug. Player-facing table: [root README](../README.md#custom-enchantments-optional-off-by-default).
+
+### Languages
+
+- English (`en_us`) and Russian (`ru_ru`), in `src/main/resources/assets/enchantaholic/lang/`. Every player-facing string (Create World buttons and tooltips, `/enchantaholic` and `/enchantaholic-notify` feedback, the settings screen, the enchant actionbar, the custom enchantment names and `.desc` lines, the Mod Menu summary) is a translation key. Vanilla terms (ON/OFF on buttons, Done, vanilla enchantment names) come from the game's own translation.
+- Server-side strings keep an English fallback (`translatableWithFallback`, and `fallback` in the enchantment JSONs) for players on vanilla clients, who have no mod lang files.
+- `LangFileTest` checks that `ru_ru.json` has exactly the keys of `en_us.json`, the same `%s`/`%1$s` placeholders per key, no empty values and the same Roman numerals (`enchantment.level.11`–`255`). Add a key to both files.
 
 ### Notification settings
 

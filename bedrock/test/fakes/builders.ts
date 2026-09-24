@@ -102,7 +102,7 @@ export interface ItemSpec {
   amount?: number;
   maxAmount?: number;
   nameTag?: string;
-  lore?: string[];
+  lore?: Array<string | object>;
   /** Enchantable options, or false for items without minecraft:enchantable. Default false. */
   enchantable?: FakeEnchantableOptions | false;
   /** Pre-set vanilla levels (validation bypassed). */
@@ -137,9 +137,9 @@ export function makeItem(typeId: string, spec: ItemSpec = {}): FakeItemStack {
       const encoded = encodeLevels(customs);
       if (encoded !== undefined) item.props.set(PROP_CUSTOM_LEVELS, encoded);
     }
-    const { user, managed } = splitLore(item.lore);
+    const { user, managed } = splitLore(item.rawLore);
     for (const [id, level] of customs) managed.set(id, level);
-    item.lore = composeLore(user, managed);
+    item.rawLore = composeLore(user, managed);
   }
   return item;
 }

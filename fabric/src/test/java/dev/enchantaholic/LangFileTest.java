@@ -109,7 +109,7 @@ class LangFileTest {
 				"tooltip names the command");
 	}
 
-	/** Every enchantment JSON in the mod datapack has a name (the ids list above is complete). */
+	/** Every enchantment JSON in the mod datapack has a name (the ids list above is complete) and the English name as fallback. */
 	@Test
 	void everyEnchantmentJsonHasLang() throws IOException {
 		for (String id : CUSTOM_IDS) {
@@ -117,7 +117,10 @@ class LangFileTest {
 				assertNotNull(in, "missing data/enchantaholic/enchantment/" + id + ".json");
 				try (Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
 					JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
-					assertEquals("enchantment.enchantaholic." + id, json.getAsJsonObject("description").get("translate").getAsString(), id);
+					JsonObject description = json.getAsJsonObject("description");
+					assertEquals("enchantment.enchantaholic." + id, description.get("translate").getAsString(), id);
+					// clients without the mod (vanilla) have no lang file: they show the fallback
+					assertEquals(lang.get("enchantment.enchantaholic." + id).getAsString(), description.get("fallback").getAsString(), id + " fallback");
 				}
 			}
 		}

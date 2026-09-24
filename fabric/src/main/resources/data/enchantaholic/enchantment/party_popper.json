@@ -1,7 +1,8 @@
 {
   "anvil_cost": 4,
   "description": {
-    "translate": "enchantment.enchantaholic.party_popper"
+    "translate": "enchantment.enchantaholic.party_popper",
+    "fallback": "Party Popper"
   },
   "max_cost": {
     "base": 65,

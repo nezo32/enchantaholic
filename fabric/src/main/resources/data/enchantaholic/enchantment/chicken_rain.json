@@ -1,7 +1,8 @@
 {
   "anvil_cost": 4,
   "description": {
-    "translate": "enchantment.enchantaholic.chicken_rain"
+    "translate": "enchantment.enchantaholic.chicken_rain",
+    "fallback": "Chicken Rain"
   },
   "max_cost": {
     "base": 65,

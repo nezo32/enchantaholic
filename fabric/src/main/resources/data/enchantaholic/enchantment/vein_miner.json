@@ -1,7 +1,8 @@
 {
   "anvil_cost": 4,
   "description": {
-    "translate": "enchantment.enchantaholic.vein_miner"
+    "translate": "enchantment.enchantaholic.vein_miner",
+    "fallback": "Vein Miner"
   },
   "max_cost": {
     "base": 65,

@@ -1,7 +1,8 @@
 {
   "anvil_cost": 4,
   "description": {
-    "translate": "enchantment.enchantaholic.yeet"
+    "translate": "enchantment.enchantaholic.yeet",
+    "fallback": "Yeet"
   },
   "max_cost": {
     "base": 65,

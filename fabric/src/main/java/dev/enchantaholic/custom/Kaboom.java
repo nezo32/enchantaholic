@@ -7,6 +7,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.ExperienceOrb;
+import net.minecraft.world.entity.decoration.ArmorStand;
+import net.minecraft.world.entity.decoration.BlockAttachedEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.Projectile;
@@ -25,8 +27,9 @@ import net.minecraft.world.level.material.FluidState;
  * The level rides on the projectile as an entity tag "enchantaholic.kaboom=L" (saved with the entity).
  *
  * <p>Performance: at most {@link CustomMath#KABOOM_PER_TICK} explosions and {@link CustomMath#KABOOM_NANOS_PER_TICK}
- * of explosion work per server tick; later impacts that tick fizzle. The blasts leave projectiles, item drops and
- * XP orbs alone: no damage, no knockback and so no exposure ray-casts for them. A Barrage volley lands as a dense
+ * of explosion work per server tick; later impacts that tick fizzle. The blasts leave projectiles, item drops,
+ * XP orbs and decorations (item frames, paintings, armor stands: no griefing) alone: no damage, no knockback and so
+ * no exposure ray-casts for them. A Barrage volley lands as a dense
  * cluster of projectiles, which would otherwise cost every explosion hundreds of ray-casts (and scatter the volley).
  */
 public final class Kaboom {
@@ -35,7 +38,7 @@ public final class Kaboom {
 	private static final Optional<Float> STOP_RAY = Optional.of(Float.MAX_VALUE);
 
 	/**
-	 * Vanilla damage/knockback, except for projectiles, item drops and XP orbs. Blocks are never affected
+	 * Vanilla damage/knockback, except for projectiles, item drops, XP orbs and decorations. Blocks are never affected
 	 * (ExplosionInteraction.NONE), so the vanilla block ray-cast (1,352 rays, run even then) stops at its first step.
 	 */
 	private static final ExplosionDamageCalculator DAMAGE = new ExplosionDamageCalculator() {
@@ -67,7 +70,8 @@ public final class Kaboom {
 	private Kaboom() {}
 
 	private static boolean spared(Entity entity) {
-		return entity instanceof Projectile || entity instanceof ItemEntity || entity instanceof ExperienceOrb;
+		return entity instanceof Projectile || entity instanceof ItemEntity || entity instanceof ExperienceOrb
+				|| entity instanceof BlockAttachedEntity || entity instanceof ArmorStand; // no griefing of item frames, paintings, armor stands
 	}
 
 	static void resetBudget() {

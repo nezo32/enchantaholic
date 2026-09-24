@@ -1,7 +1,8 @@
 {
   "anvil_cost": 4,
   "description": {
-    "translate": "enchantment.enchantaholic.magnet"
+    "translate": "enchantment.enchantaholic.magnet",
+    "fallback": "Magnet"
   },
   "max_cost": {
     "base": 65,

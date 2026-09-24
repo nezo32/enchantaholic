@@ -65,8 +65,16 @@ public final class CustomEffects {
 			VeinMiner.onBlockBreak(server, p, pos, state);
 			ChickenRain.onBlockBreak(server, p, pos);
 			MidasTouch.onBlockBreak(server, p, pos);
-			Butterfingers.onAction(p); // last: may take the tool out of the hand
 		});
+	}
+
+	/**
+	 * ServerPlayerGameMode#destroyBlock (RETURN): Butterfingers for a block break. It runs here and not in the AFTER event
+	 * because the tool must still be in hand when vanilla computes the block's drops and uses durability.
+	 */
+	public static void afterDestroyBlock(ServerPlayer player, boolean destroyed) {
+		if (!destroyed || !active(player)) return;
+		safely("block break", () -> Butterfingers.onAction(player));
 	}
 
 	private static void afterDamage(LivingEntity entity, DamageSource source, float baseDamage, float damageTaken, boolean blocked) {

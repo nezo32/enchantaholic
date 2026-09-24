@@ -1,7 +1,8 @@
 {
   "anvil_cost": 4,
   "description": {
-    "translate": "enchantment.enchantaholic.hiccups"
+    "translate": "enchantment.enchantaholic.hiccups",
+    "fallback": "Curse of Hiccups"
   },
   "max_cost": {
     "base": 65,

@@ -2,13 +2,12 @@ package dev.enchantaholic.test;
 
 import static dev.enchantaholic.test.TestSupport.BREAK_POS;
 import static dev.enchantaholic.test.TestSupport.breakBlock;
-import static dev.enchantaholic.test.TestSupport.setRule;
+import static dev.enchantaholic.test.TestSupport.setMode;
 import static dev.enchantaholic.test.TestSupport.survivalPlayer;
 import static dev.enchantaholic.test.TestSupport.totalLevels;
 
 import com.mojang.authlib.GameProfile;
 import dev.enchantaholic.BlockBreakHandler;
-import dev.enchantaholic.Enchantaholic;
 import dev.enchantaholic.Feedback;
 import dev.enchantaholic.ItemEnchanter;
 import io.netty.channel.embedded.EmbeddedChannel;
@@ -46,13 +45,13 @@ import net.minecraft.world.level.block.Blocks;
 
 /**
  * Edge-case server gametests (tester additions). Same concurrency rule as {@link EnchantaholicGameTests}:
- * rule-dependent tests set the rule and do all work synchronously.
+ * mode-dependent tests set the mode and do all work synchronously.
  */
 public class EnchantaholicEdgeGameTests {
 	/** Adventure mode is not excluded: a permitted (can_break) break triggers; shouldTrigger is true. */
 	@GameTest
 	public void adventureTriggers(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.setGameMode(GameType.ADVENTURE);
 		helper.assertValueEqual(player.gameMode(), GameType.ADVENTURE, "real game mode");
@@ -70,24 +69,24 @@ public class EnchantaholicEdgeGameTests {
 		helper.succeed();
 	}
 
-	/** Toggling the rule mid-game with the real /gamerule command takes effect immediately. */
+	/** Toggling the mode mid-game with the real /enchantaholic command takes effect immediately. */
 	@GameTest
-	public void ruleToggledViaCommand(GameTestHelper helper) {
+	public void modeToggledViaCommand(GameTestHelper helper) {
 		MinecraftServer server = helper.getLevel().getServer();
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(0, new ItemStack(Items.STICK));
 		try {
-			server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "gamerule enchantaholic:enchantaholic false");
-			helper.assertTrue(!helper.getLevel().getGameRules().get(Enchantaholic.ENCHANTAHOLIC), "command set false");
+			server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "enchantaholic off");
+			helper.assertTrue(!TestSupport.mode(helper), "command set false");
 			breakBlock(helper, player, Blocks.STONE);
 			helper.assertValueEqual(totalLevels(player.getInventory().getItem(0)), 0, "off via command: no enchant");
 
-			server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "gamerule enchantaholic:enchantaholic true");
-			helper.assertTrue(helper.getLevel().getGameRules().get(Enchantaholic.ENCHANTAHOLIC), "command set true");
+			server.getCommands().performPrefixedCommand(server.createCommandSourceStack(), "enchantaholic on");
+			helper.assertTrue(TestSupport.mode(helper), "command set true");
 			breakBlock(helper, player, Blocks.STONE);
 			helper.assertValueEqual(totalLevels(player.getInventory().getItem(0)), 1, "on via command: one enchant");
 		} finally {
-			setRule(helper, true);
+			setMode(helper, true);
 		}
 		helper.succeed();
 	}
@@ -95,7 +94,7 @@ public class EnchantaholicEdgeGameTests {
 	/** Blocks destroyed without a player break (plain destroyBlock, explosion) never enchant anything. */
 	@GameTest
 	public void nonPlayerBreaksDoNothing(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(0, new ItemStack(Items.STICK));
 		ServerLevel level = helper.getLevel();
@@ -116,7 +115,7 @@ public class EnchantaholicEdgeGameTests {
 	/** A Fabric FakePlayer (e.g. a machine mod) breaking a block never enchants anything and does not crash. */
 	@GameTest
 	public void fakePlayerIsSafe(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		FakePlayer fake = FakePlayer.get(helper.getLevel(), new GameProfile(UUID.randomUUID(), "enchantaholic-fake"));
 		fake.getInventory().clearContent();
 		fake.getInventory().setItem(0, new ItemStack(Items.STICK));
@@ -180,7 +179,7 @@ public class EnchantaholicEdgeGameTests {
 	/** The in-place component change reaches the client immediately for armor (menu slot 5) and offhand (menu slot 45). */
 	@GameTest
 	public void armorAndOffhandChangeIsSentToClient(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerLevel level = helper.getLevel();
 		CommonListenerCookie cookie = CommonListenerCookie.createInitial(new GameProfile(UUID.randomUUID(), "sync-mock-player"), false);
 		ServerPlayer player = new ServerPlayer(level.getServer(), level, cookie.gameProfile(), cookie.clientInformation());

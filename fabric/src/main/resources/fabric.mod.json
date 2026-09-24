@@ -18,6 +18,7 @@
 		"client": ["dev.enchantaholic.client.EnchantaholicClient"]
 	},
 	"mixins": [
+		"enchantaholic.mixins.json",
 		{ "config": "enchantaholic.client.mixins.json", "environment": "client" }
 	],
 	"depends": {

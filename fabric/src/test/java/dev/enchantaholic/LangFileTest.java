@@ -61,8 +61,10 @@ class LangFileTest {
 	@Test
 	void requiredKeysPresent() {
 		for (String key : new String[] {
-				"gamerule.enchantaholic.enchantaholic",
-				"gamerule.enchantaholic.enchantaholic.description",
+				"enchantaholic.command.on",
+				"enchantaholic.command.off",
+				"enchantaholic.command.status.on",
+				"enchantaholic.command.status.off",
 				"enchantaholic.createWorld.toggle",
 				"enchantaholic.createWorld.toggle.tooltip",
 				"enchantaholic.message.enchanted"}) {
@@ -74,9 +76,10 @@ class LangFileTest {
 	}
 
 	@Test
-	void noColonGameruleKeys() {
+	void noGameruleKeys() {
 		for (String key : lang.keySet()) {
-			assertFalse(key.contains("gamerule.enchantaholic:"), "wrong gamerule key " + key);
+			assertFalse(key.startsWith("gamerule."), "stale game rule key " + key);
 		}
+		assertFalse(lang.get("enchantaholic.createWorld.toggle.tooltip").getAsString().contains("/gamerule"), "tooltip mentions /gamerule");
 	}
 }

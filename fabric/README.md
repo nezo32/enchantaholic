@@ -31,14 +31,15 @@ timeout 300 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEO_FORCE_EGL=1 ./grad
 | Path | What it holds |
 |---|---|
 | `src/main/java/dev/enchantaholic/core/` | Pure selection and level logic. It must not import Minecraft or Fabric classes, and `CorePurityTest` checks this. |
-| `src/main/java/dev/enchantaholic/` | Minecraft glue: the game rule, the block-break hook, the inventory adapter and the feedback. |
-| `src/client/` | The Create World toggle (a mixin on `CreateWorldScreen$GameTab`). |
+| `src/main/java/dev/enchantaholic/` | Minecraft glue: the per-world mode (`mode/`: SavedData, `/enchantaholic` command, new-world handoff), the block-break hook, the inventory adapter and the feedback. |
+| `src/main/java/dev/enchantaholic/mixin/` | Common mixins: a duck on `LevelStorageSource.LevelStorageAccess` that carries the Create World choice to the integrated server, and a `MinecraftServer` accessor. |
+| `src/client/` | The Create World toggle: `GameTabMixin` adds the button, `CreateWorldScreenMixin` holds its value and hands it to the new world. |
 | `src/test/` | JUnit tests. |
 | `src/gametest/` | Server and client gametests. This is a separate test mod, `enchantaholic-gametest`, and it is never packaged. |
 
 ## Behavior summary
 
-- The game rule is `enchantaholic:enchantaholic`, a boolean that defaults to `false`. You can turn it on in Create World → Game, or with `/gamerule enchantaholic:enchantaholic true`.
+- Enchantaholic Mode is stored per world in `data/enchantaholic/mode.dat`, off by default. Set it with the Create World → Game button or `/enchantaholic on|off|status` (op level 2). There is no game rule. Worlds from 0.1.0 with the old `enchantaholic:enchantaholic` game rule on are migrated to ON on first load.
 - When a survival or adventure player breaks a block that is not instant-break, one random non-empty slot (main inventory, armor or offhand) gets one random enchantment from the whole registry. That enchantment goes up by one level, or is added at level I. Curses and datapack enchantments are included.
 - Lunge is only rolled on spears. Enchantments are not checked for compatibility with the item. Levels are capped at 255, the vanilla codec limit.
 

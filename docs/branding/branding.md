@@ -5,13 +5,13 @@ Alt: *Sharpness VI is just the beginning.*
 
 ## CurseForge description
 
-> **Enchantaholic** turns every swing into a lottery. Each block you break adds a **random enchantment to a random item in your inventory**, and levels **keep stacking past vanilla caps**: Sharpness VI, Efficiency XII, Protection XXX. Dig a tunnel and you come out with a god-tier sword and a pair of boots you can't explain. The mode is a toggle on the world-creation screen and a game rule (`/gamerule enchantaholic:enchantaholic true`), so you can switch it on in any world. There's a **Fabric mod for Java 26.2–26.3** and a **Bedrock behavior pack** (26.50+; activate the pack, toggle with `/enchantaholic:toggle`).
+> **Enchantaholic** turns every swing into a lottery. Each block you break adds a **random enchantment to a random item in your inventory**, and levels **keep stacking past vanilla caps**: Sharpness VI, Efficiency XII, Protection XXX. Dig a tunnel and you come out with a god-tier sword and a pair of boots you can't explain. The mode is a toggle on the world-creation screen, saved with the world, and operators can flip it any time with `/enchantaholic on|off`, so you can switch it on in any world. There's a **Fabric mod for Java 26.2–26.3** and a **Bedrock behavior pack** (26.50+; activate the pack, toggle with `/enchantaholic:toggle`).
 
 ## Features
 - ⛏️ **Every block counts:** each break enchants a random item in your inventory.
 - 📈 **Past the caps:** levels stack beyond vanilla limits (VI, VII … up to CCLV on Java; on Bedrock the true level is tracked in lore, with real bonuses for Sharpness, Smite, Bane, Power, the Protection family and Efficiency).
 - 🎲 **Fully random:** any item, any enchantment (Bedrock only rolls pairs the game accepts). The chaos is the point.
-- ⚙️ **Toggle anywhere:** an ON/OFF button at world creation plus a game rule for existing worlds (Java); an operator command on Bedrock.
+- ⚙️ **Toggle anywhere:** an ON/OFF button at world creation plus an operator command (`/enchantaholic`) for existing worlds and servers (Java); an operator command on Bedrock.
 - 💬 **Clear feedback:** an actionbar message shows what just got enchanted.
 - 🔢 **Readable numerals:** tooltips show proper Roman numerals up to 255, not `enchantment.level.11`.
 - 🧱 **Java + Bedrock:** a Fabric mod (26.2–26.3) and a Bedrock behavior pack.
@@ -38,10 +38,12 @@ In-game text: use `§d` (light purple) for the ✦ and the item name, and `§b` 
 ## Player-facing strings (en_us)
 | Key | Text |
 |---|---|
-| `gamerule.enchantaholic.enchantaholic` | Enchantaholic Mode |
-| `gamerule.enchantaholic.enchantaholic.description` | Every block you break enchants a random item in your inventory. Levels stack past vanilla limits. |
 | `enchantaholic.createWorld.toggle` | Enchantaholic Mode |
-| `enchantaholic.createWorld.toggle.tooltip` | Every block you break adds a random enchantment to a random item in your inventory. Levels keep stacking past the normal caps (Sharpness VI, VII, and beyond). You can change this later with /gamerule enchantaholic:enchantaholic. |
+| `enchantaholic.createWorld.toggle.tooltip` | Every block you break adds a random enchantment to a random item in your inventory. Levels keep stacking past the normal caps (Sharpness VI, VII, and beyond). Saved with this world. Operators can change it later with /enchantaholic on\|off. |
+| `enchantaholic.command.on` | Enchantaholic Mode is now ON for this world |
+| `enchantaholic.command.off` | Enchantaholic Mode is now OFF for this world |
+| `enchantaholic.command.status.on` | Enchantaholic Mode is ON in this world |
+| `enchantaholic.command.status.off` | Enchantaholic Mode is OFF in this world |
 | `enchantaholic.message.enchanted` | `✦ %1$s → %2$s` |
 
 **Enchant message:** show it on the **actionbar** (`player.displayClientMessage(msg, true)`) so fast mining doesn't flood chat. Example: `✦ Diamond Pickaxe → Efficiency VI`.

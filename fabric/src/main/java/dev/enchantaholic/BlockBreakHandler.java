@@ -2,6 +2,8 @@ package dev.enchantaholic;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import dev.enchantaholic.mode.EnchantaholicMode;
+
 import net.fabricmc.fabric.api.entity.FakePlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -35,9 +37,9 @@ public final class BlockBreakHandler {
 		}
 	}
 
-	/** Rule on, a real player (not a Fabric FakePlayer) neither creative nor spectator, and the block is not instant-break. */
+	/** Mode on for this world, a real player (not a Fabric FakePlayer) neither creative nor spectator, and the block is not instant-break. */
 	public static boolean shouldTrigger(ServerLevel level, Player player, BlockState state) {
-		if (!level.getGameRules().get(Enchantaholic.ENCHANTAHOLIC)) return false;
+		if (!EnchantaholicMode.isEnabled(level.getServer())) return false;
 		if (player instanceof FakePlayer) return false; // machine/automation mods breaking blocks
 		GameType mode = gameModeOf(player);
 		if (mode.isCreative() || mode == GameType.SPECTATOR) return false;

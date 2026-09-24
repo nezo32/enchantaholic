@@ -34,9 +34,9 @@ Difficulty and hardcore settings are never changed. Levels beyond X are shown as
 | | Java (Fabric) | Bedrock (behavior pack) |
 |---|---|---|
 | Game versions | Minecraft Java 26.2–26.3 | Bedrock 26.50+ |
-| Turning it on | **Enchantaholic Mode** ON/OFF button on the Create World → Game tab, or `/gamerule enchantaholic:enchantaholic true` | Activate the behavior pack when you create the world |
-| Default | Off (game rule `false`) | On while the pack is active |
-| Toggling later | `/gamerule enchantaholic:enchantaholic true\|false` | `/enchantaholic:toggle [on\|off\|status]`, operators only (works with cheats off) |
+| Turning it on | **Enchantaholic Mode** ON/OFF button on the Create World → Game tab (saved with the world), or `/enchantaholic on` | Activate the behavior pack when you create the world |
+| Default | Off | On while the pack is active |
+| Toggling later | `/enchantaholic [on\|off\|status]`, operators only (permission level 2, like /gamerule) | `/enchantaholic:toggle [on\|off\|status]`, operators only (works with cheats off) |
 | Enchantment/item pairs | Any enchantment on any item (compatibility is not checked) | Only pairs Bedrock accepts: an incompatible pick is rerolled (another enchantment or another item) |
 | Level cap | 255 (Java's hard limit) | No cap on the tracked level. The **real** enchantment stops at the vanilla max, and the true level is kept in a lore line and a dynamic property on the item |
 | Levels above the vanilla max | Real enchantment levels, so vanilla formulas apply at every level (see [Known quirks](#known-quirks-java)) | Extra bonus effects only for Sharpness, Smite, Bane of Arthropods, Power, the Protection family (Protection, Fire/Blast/Projectile Protection, Feather Falling) and Efficiency. Other enchantments show the level only |
@@ -51,7 +51,13 @@ Difficulty and hardcore settings are never changed. Levels beyond X are shown as
    the jar from [GitHub releases](https://github.com/nezo32/enchantaholic/releases) or CurseForge.
 3. Turn the mode on in one of two ways:
    - **New world:** Create World → Game tab → set **Enchantaholic Mode** to **ON**.
-   - **Existing world:** `/gamerule enchantaholic:enchantaholic true`. The rule is `false` by default.
+   - **Existing world or dedicated server:** an operator runs `/enchantaholic on` (`/enchantaholic status` shows the
+     current state). It is off by default.
+
+**Upgrading from 0.1.0:** 0.1.0 used a game rule (`enchantaholic:enchantaholic`) instead. Worlds that had it on are
+switched ON automatically the first time they load with 0.2.0. That first load logs one harmless
+`Unknown registry key … enchantaholic:enchantaholic` error; the other game rules are kept, and the stale entry is
+dropped on the next save.
 
 ### Bedrock Edition
 

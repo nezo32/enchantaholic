@@ -10,6 +10,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.level.gamerules.GameRuleMap;
 import net.minecraft.world.level.storage.LevelResource;
 
 /** ServerLifecycleEvents.SERVER_STARTING: initialize the mode before levels load or anyone joins. */
@@ -43,6 +44,10 @@ public final class ModeBootstrap {
 		}
 		boolean legacy = readLegacyRule(dataDir.resolve("minecraft/game_rules.dat"));
 		EnchantaholicMode.set(server, legacy);
+		// vanilla only rewrites game_rules.dat when a rule changes, so a 0.1.0 world would keep the stale
+		// enchantaholic:enchantaholic entry (and its "Unknown registry key" error) on every start; rewrite it once now
+		GameRuleMap rules = server.getDataStorage().get(GameRuleMap.TYPE);
+		if (rules != null) rules.setDirty();
 		server.getDataStorage().scheduleSave();
 		if (legacy) Enchantaholic.LOGGER.info("Migrated game rule {}=true to Enchantaholic Mode ON", LEGACY_RULE_KEY);
 	}

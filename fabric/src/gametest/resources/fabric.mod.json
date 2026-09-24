@@ -8,10 +8,12 @@
 		"fabric-gametest": [
 			"dev.enchantaholic.test.EnchantaholicGameTests",
 			"dev.enchantaholic.test.EnchantaholicEdgeGameTests",
-			"dev.enchantaholic.test.EnchantaholicModeGameTests"
+			"dev.enchantaholic.test.EnchantaholicModeGameTests",
+			"dev.enchantaholic.test.EnchantaholicNotifyGameTests"
 		],
 		"fabric-client-gametest": [
-			"dev.enchantaholic.test.EnchantaholicClientGameTest"
+			"dev.enchantaholic.test.EnchantaholicClientGameTest",
+			"dev.enchantaholic.test.EnchantaholicNotifyClientGameTest"
 		]
 	},
 	"depends": {

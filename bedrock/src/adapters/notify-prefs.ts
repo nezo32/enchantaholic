@@ -1,11 +1,19 @@
 import type { Entity } from "@minecraft/server";
-import { system } from "@minecraft/server";
+import { system, world } from "@minecraft/server";
 import { PROP_NOTIFY } from "../core/config";
-import { DEFAULT_NOTIFY, encodeNotifyPrefs, parseNotifyPrefs, type NotifyPrefs } from "../core/notify";
+import {
+  DEFAULT_NOTIFY,
+  encodeNotifyPrefs,
+  parseNotifyPrefs,
+  type NotifyPrefs,
+} from "../core/notify";
 import { safe, warnOnce } from "./log";
 
 /** Anything with a stable id and dynamic properties (Player / Entity; FakePlayer in tests). */
-export type PrefsHolder = Pick<Entity, "id" | "getDynamicProperty" | "setDynamicProperty">;
+export type PrefsHolder = Pick<
+  Entity,
+  "id" | "getDynamicProperty" | "setDynamicProperty"
+>;
 
 /** In-memory source of truth per entity id; writes to the property are deferred to system.run. */
 const cache = new Map<string, NotifyPrefs>();
@@ -36,6 +44,18 @@ export function setNotifyPrefs(p: PrefsHolder, prefs: NotifyPrefs): void {
     safe("notify-save", () => {
       const latest = cache.get(id) ?? prefs;
       p.setDynamicProperty(PROP_NOTIFY, encodeNotifyPrefs(latest));
+    }),
+  );
+}
+
+/**
+ * Drops a player's cache entry when they leave, so the map does not grow with every player who ever
+ * joined and a rejoin re-reads the stored property. Called once at worldLoad.
+ */
+export function registerNotifyPrefs(): void {
+  world.afterEvents.playerLeave.subscribe(
+    safe("notify-leave", ({ playerId }) => {
+      cache.delete(playerId);
     }),
   );
 }

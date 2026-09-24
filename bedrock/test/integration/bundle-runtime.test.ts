@@ -248,6 +248,7 @@ describe("bundled main.js in a simulated runtime", () => {
     expect(world.beforeEvents.entityHurt.count).toBe(1);
     expect(world.afterEvents.entitySpawn.count).toBe(1);
     expect(world.afterEvents.entityRemove.count).toBe(1);
+    expect(world.afterEvents.playerLeave.count).toBe(1); // notify-prefs cache cleanup
     expect(system.intervals).toHaveLength(1);
     const cmd = registry.commands.get(COMMAND)?.command;
     expect(cmd?.cheatsRequired).toBe(false);

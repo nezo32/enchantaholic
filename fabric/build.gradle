@@ -19,10 +19,15 @@ if (fabricApiVersion == null) {
 def modMenuVersion = project.property("modmenu_${mc.replace('.', '_')}")
 
 repositories {
-	maven {
-		name = "TerraformersMC"
-		url = "https://maven.terraformersmc.com/releases/"
-		content { includeGroup "com.terraformersmc" }
+	// Mod Menu: only from TerraformersMC, never looked up on Maven Central
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = "TerraformersMC"
+				url = "https://maven.terraformersmc.com/releases/"
+			}
+		}
+		filter { includeGroup "com.terraformersmc" }
 	}
 }
 

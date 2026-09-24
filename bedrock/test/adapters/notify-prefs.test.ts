@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, type MockInstance } from "vitest";
-import { getNotifyPrefs, setNotifyPrefs } from "../../src/adapters/notify-prefs";
+import { getNotifyPrefs, registerNotifyPrefs, setNotifyPrefs, type PrefsHolder } from "../../src/adapters/notify-prefs";
 import { PROP_NOTIFY } from "../../src/core/config";
 import { DEFAULT_NOTIFY } from "../../src/core/notify";
 import { makePlayer } from "../fakes/builders";
-import { _withExecMode, system } from "../fakes/minecraft-server";
+import { _withExecMode, system, world } from "../fakes/minecraft-server";
 import { resetAll } from "./helpers";
 
 describe("notify prefs adapter", () => {
@@ -73,5 +73,41 @@ describe("notify prefs adapter", () => {
     expect(getNotifyPrefs(a)).toEqual({ sound: false, message: false });
     expect(getNotifyPrefs(b)).toEqual(DEFAULT_NOTIFY);
     expect(b.props.has(PROP_NOTIFY)).toBe(false);
+  });
+
+  /** A player session: a new object each join, same stable id, properties kept by the world. */
+  const session = (id: string, store: Map<string, unknown>): PrefsHolder =>
+    ({
+      id,
+      getDynamicProperty: (k: string) => store.get(k),
+      setDynamicProperty: (k: string, v?: unknown) => {
+        store.set(k, v);
+      },
+    }) as unknown as PrefsHolder;
+
+  it("leave/rejoin: the setting survives (same id, new object) and leave drops the cache entry", () => {
+    registerNotifyPrefs();
+    const store = new Map<string, unknown>();
+    setNotifyPrefs(session("p1", store), { sound: false, message: true });
+    system.flushRuns();
+    world.afterEvents.playerLeave.emit({ playerId: "p1", playerName: "Steve" });
+    // A value written behind the cache's back is only visible after the entry was dropped.
+    store.set(PROP_NOTIFY, '{"sound":false,"message":false}');
+    expect(getNotifyPrefs(session("p1", store))).toEqual({ sound: false, message: false });
+    world.afterEvents.playerLeave.emit({ playerId: "unknown", playerName: "X" }); // no-op
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("a player leaving before the deferred write still persists the latest value", () => {
+    registerNotifyPrefs();
+    const store = new Map<string, unknown>();
+    const s = session("p2", store);
+    _withExecMode("restricted", () => {
+      setNotifyPrefs(s, { sound: false, message: false });
+      setNotifyPrefs(s, { sound: true, message: false });
+    });
+    world.afterEvents.playerLeave.emit({ playerId: "p2", playerName: "Alex" });
+    system.flushRuns();
+    expect(store.get(PROP_NOTIFY)).toBe('{"sound":true,"message":false}');
   });
 });

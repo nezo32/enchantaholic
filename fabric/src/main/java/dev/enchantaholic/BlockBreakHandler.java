@@ -2,6 +2,7 @@ package dev.enchantaholic;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import dev.enchantaholic.custom.CustomEffects;
 import dev.enchantaholic.mode.EnchantaholicMode;
 
 import net.fabricmc.fabric.api.entity.FakePlayer;
@@ -39,6 +40,7 @@ public final class BlockBreakHandler {
 
 	/** Mode on for this world, a real player (not a Fabric FakePlayer) neither creative nor spectator, and the block is not instant-break. */
 	public static boolean shouldTrigger(ServerLevel level, Player player, BlockState state) {
+		if (CustomEffects.inEffect()) return false; // blocks broken by Vein Miner never roll
 		if (!EnchantaholicMode.isEnabled(level.getServer())) return false;
 		if (player instanceof FakePlayer) return false; // machine/automation mods breaking blocks
 		GameType mode = gameModeOf(player);

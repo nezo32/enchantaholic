@@ -12,11 +12,11 @@ import {
   writeExtras,
 } from "../../src/adapters/item-levels";
 import { getRegistry } from "../../src/adapters/registry";
-import { PROP_CUSTOM_LEVELS, PROP_LEVELS } from "../../src/core/config";
+import { LORE_TAG, PROP_CUSTOM_LEVELS, PROP_LEVELS } from "../../src/core/config";
 import { CUSTOM } from "../../src/core/custom/roster";
-import { encodeLoreLine } from "../../src/core/lore";
+import { encodeLoreLine, encodeRawLoreLine } from "../../src/core/lore";
 import { asItem, fakeEnchantable, makeItem } from "../fakes/builders";
-import type { FakeItemStack } from "../fakes/minecraft-server";
+import { FakeItemStack } from "../fakes/minecraft-server";
 import { levelsProp, loreLine, overcapped, resetAll } from "./helpers";
 
 const SHARP = { id: "minecraft:sharpness", maxLevel: 5 };
@@ -109,11 +109,41 @@ describe("item-levels", () => {
     expect(console.warn).not.toHaveBeenCalled();
   });
 
-  it("writeExtras does not call setLore when the lore is unchanged", () => {
+  it("writeExtras migrates a legacy English line to a localized one once, then does not call setLore", () => {
     const item = overcapped("minecraft:diamond_sword", "minecraft:sharpness", 5, 7);
+    expect(item.rawLore).toEqual([loreLine("minecraft:sharpness", 7)]);
     const spy = vi.spyOn(item, "setLore");
     writeExtras(asItem(item), enchOf(item), new Map([["minecraft:sharpness", 7]]), getRegistry());
-    expect(spy).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(item.rawLore).toEqual([encodeRawLoreLine("minecraft:sharpness", 7)]);
+    expect(item.lore).toEqual([loreLine("minecraft:sharpness", 7)]);
+    expect(item.loreRu).toEqual([`${LORE_TAG}§dОстрота VII`]);
+    writeExtras(asItem(item), enchOf(item), new Map([["minecraft:sharpness", 7]]), getRegistry());
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to English string lines for good when the engine rejects RawMessage lore", () => {
+    FakeItemStack.rejectRawLore = true;
+    const item = makeItem("minecraft:diamond_sword", { enchantable: { compatible: "all" }, levels: { sharpness: 5 } });
+    writeExtras(asItem(item), enchOf(item), new Map([["minecraft:sharpness", 6]]), getRegistry());
+    expect(item.rawLore).toEqual([loreLine("minecraft:sharpness", 6)]);
+    expect(console.warn).toHaveBeenCalledTimes(1);
+    const spy = vi.spyOn(item, "setLore");
+    writeExtras(asItem(item), enchOf(item), new Map([["minecraft:sharpness", 6]]), getRegistry());
+    expect(spy).not.toHaveBeenCalled(); // text mode sticks: no failed RawMessage attempt per write
+    FakeItemStack.rejectRawLore = false;
+    writeExtras(asItem(item), enchOf(item), new Map([["minecraft:sharpness", 7]]), getRegistry());
+    expect(item.rawLore).toEqual([loreLine("minecraft:sharpness", 7)]);
+  });
+
+  it("reads lore through getRawLore and keeps foreign RawMessage user lines verbatim", () => {
+    const foreign = { rawtext: [{ text: "§7Blessed: " }, { translate: "item.apple.name" }] };
+    const item = overcapped("minecraft:diamond_sword", "minecraft:sharpness", 5, 7, { lore: [] });
+    item.rawLore = ["plain", foreign, encodeRawLoreLine("minecraft:sharpness", 7)];
+    const getLore = vi.spyOn(item, "getLore");
+    writeExtras(asItem(item), enchOf(item), new Map([["minecraft:sharpness", 8]]), getRegistry());
+    expect(getLore).not.toHaveBeenCalled();
+    expect(item.rawLore).toEqual(["plain", foreign, encodeRawLoreLine("minecraft:sharpness", 8)]);
   });
 
   it("writeExtras survives setLore throwing", () => {
@@ -128,9 +158,11 @@ describe("item-levels", () => {
   it("overcapLevel fast path reads no lore or dynprop below max", () => {
     const item = makeItem("minecraft:diamond_sword", { enchantable: { compatible: "all" }, levels: { sharpness: 4 } });
     const lore = vi.spyOn(item, "getLore");
+    const rawLore = vi.spyOn(item, "getRawLore");
     const prop = vi.spyOn(item, "getDynamicProperty");
     expect(overcapLevel(asItem(item), SHARP)).toBe(0);
     expect(lore).not.toHaveBeenCalled();
+    expect(rawLore).not.toHaveBeenCalled();
     expect(prop).not.toHaveBeenCalled();
   });
 
@@ -237,6 +269,9 @@ describe("item-levels: custom enchantments", () => {
     expect(getCustomLevel(undefined, CUSTOM.magnet)).toBe(0);
     const item = makeItem("minecraft:diamond_sword", { customs: { [CUSTOM.magnet]: 2 } });
     vi.spyOn(item, "getLore").mockImplementation(() => {
+      throw new Error("invalid");
+    });
+    vi.spyOn(item, "getRawLore").mockImplementation(() => {
       throw new Error("invalid");
     });
     vi.spyOn(item, "getDynamicProperty").mockImplementation(() => {

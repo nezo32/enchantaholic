@@ -5,6 +5,7 @@ import { _resetStateCache } from "../../src/adapters/state";
 import { _resetShots } from "../../src/adapters/effects/power";
 import { _resetPendingToggle } from "../../src/adapters/command";
 import { _resetNotifyCache } from "../../src/adapters/notify-prefs";
+import { _resetLoreFormat } from "../../src/adapters/item-levels";
 import { PROP_LEVELS } from "../../src/core/config";
 import { displayName } from "../../src/core/enchant-names";
 import { encodeLoreLine } from "../../src/core/lore";
@@ -20,6 +21,7 @@ export function resetAll() {
   _resetShots();
   _resetPendingToggle();
   _resetNotifyCache();
+  _resetLoreFormat();
   return vi.spyOn(console, "warn").mockImplementation(() => undefined);
 }
 

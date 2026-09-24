@@ -6,7 +6,7 @@ import type { EnchantInfo } from "../core/eligibility";
 import { normalizeId } from "../core/ids";
 import { decodeLevels, encodeLevels } from "../core/level-codec";
 import { overcapOf, pruneExtras, resolveTrueLevel } from "../core/levels";
-import { composeLore, splitLore } from "../core/lore";
+import { composeLore, loreKey, splitLore, type LoreFormat, type LoreLine } from "../core/lore";
 import type { ItemProbe } from "../core/selection";
 import { warnOnce } from "./log";
 import type { EnchantRegistry } from "./registry";
@@ -30,12 +30,31 @@ function vanillaLevel(ench: ItemEnchantableComponent, id: string): number {
   }
 }
 
-function safeLore(item: ItemStack): string[] {
+/**
+ * Lore as RawMessages (getRawLore, 2.10.0) so localized managed lines stay readable; string lines come
+ * back as `{ text }` and are unwrapped to plain strings. Falls back to getLore; never throws.
+ */
+function safeLore(item: ItemStack): LoreLine[] {
   try {
-    return item.getLore();
+    return item.getRawLore().map((line) => {
+      const keys = Object.keys(line);
+      return keys.length === 1 && keys[0] === "text" && typeof line.text === "string" ? line.text : line;
+    });
   } catch {
-    return [];
+    try {
+      return item.getLore();
+    } catch {
+      return [];
+    }
   }
+}
+
+/** Set once the engine rejects RawMessage lore; from then on managed lines are written as English strings. */
+let loreFormat: LoreFormat = "raw";
+
+/** Test helper. */
+export function _resetLoreFormat(): void {
+  loreFormat = "raw";
 }
 
 /**
@@ -84,13 +103,26 @@ export function getCustomLevel(item: ItemStack | undefined, id: CustomId): numbe
 /** Recomposes the managed lore lines from `managed` (vanilla extras ∪ customs); writes only on change. */
 function writeManagedLore(item: ItemStack, managed: ReadonlyMap<string, number>): void {
   const current = safeLore(item);
-  const next = composeLore(splitLore(current).user, managed);
-  if (!sameLines(current, next)) {
-    try {
-      item.setLore(next);
-    } catch (err) {
+  const user = splitLore(current).user;
+  const next = composeLore(user, managed, loreFormat);
+  if (loreKey(current) === loreKey(next)) return;
+  try {
+    item.setLore(next);
+    return;
+  } catch (err) {
+    if (loreFormat === "text") {
       warnOnce("lore", err);
+      return;
     }
+    warnOnce("lore-raw", err);
+  }
+  // RawMessage lore was rejected: retry with the English string lines; if those work, keep using them.
+  const text = composeLore(user, managed, "text");
+  try {
+    if (loreKey(current) !== loreKey(text)) item.setLore(text);
+    loreFormat = "text";
+  } catch (err) {
+    warnOnce("lore", err);
   }
 }
 
@@ -136,10 +168,6 @@ export function overcapLevel(item: ItemStack, info: EnchantInfo): number {
   const vanilla = vanillaLevel(ench, info.id);
   if (vanilla <= 0 || vanilla < info.maxLevel) return 0;
   return overcapOf(resolveTrueLevel(vanilla, info.maxLevel, readExtras(item).get(info.id)), info.maxLevel);
-}
-
-function sameLines(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((line, i) => line === b[i]);
 }
 
 /**

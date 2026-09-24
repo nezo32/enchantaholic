@@ -24,13 +24,15 @@ import {
 } from "../fakes/builders";
 import { EquipmentSlot, FakeEnchantable, GameMode, world, type FakePlayer } from "../fakes/minecraft-server";
 import { levelsProp, loreLine, resetAll } from "./helpers";
+import { renderRaw } from "../fakes/lang";
 
 const onlySharp = (levels: Record<string, number> = {}, extra: Parameters<typeof makeItem>[1] = {}) =>
   makeItem("minecraft:diamond_sword", { enchantable: { compatible: ["sharpness"] }, levels, ...extra });
 
 function actionText(p: FakePlayer): string {
   const last = p.onScreenDisplay.actionBars.at(-1) as { rawtext: Array<{ text?: string; translate?: string }> };
-  return last.rawtext.map((x) => x.text ?? `<${x.translate}>`).join("");
+  // Item names stay as <key>; enchantment names are rendered as an English client shows them.
+  return last.rawtext.map((x) => (x.translate?.startsWith("item.") ? `<${x.translate}>` : renderRaw(x))).join("");
 }
 
 describe("enchanter gates", () => {

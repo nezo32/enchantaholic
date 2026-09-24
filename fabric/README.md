@@ -41,7 +41,7 @@ timeout 300 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 SDL_VIDEO_FORCE_EGL=1 ./grad
 
 ## Behavior summary
 
-- Enchantaholic Mode is stored per world in `data/enchantaholic/mode.dat`, off by default. Set it with the Create World → Game button or `/enchantaholic on|off|status` (op level 2). There is no game rule. Worlds from 0.1.0 with the old `enchantaholic:enchantaholic` game rule on are migrated to ON on first load.
+- Enchantaholic Mode is stored per world in `data/enchantaholic/mode.dat`. The Create World → Game button starts ON; worlds created elsewhere (dedicated servers) start OFF. Set it with that button or `/enchantaholic on|off|status` (op level 2). There is no game rule. Worlds from 0.1.0 with the old `enchantaholic:enchantaholic` game rule on are migrated to ON on first load.
 - When a survival or adventure player breaks a block that is not instant-break, one random non-empty slot (main inventory, armor or offhand) gets one random enchantment from the whole registry. That enchantment goes up by one level, or is added at level I. Curses and datapack enchantments are included.
 - Lunge is only rolled on spears. Enchantments are not checked for compatibility with the item. Levels are capped at 255, the vanilla codec limit.
 

@@ -11,6 +11,7 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.player.Inventory;
@@ -38,6 +39,11 @@ public final class ItemEnchanter {
 		@Override
 		public int level(Holder<Enchantment> enchantment) {
 			return getLevel(stack, enchantment);
+		}
+
+		@Override
+		public boolean excludes(Holder<Enchantment> enchantment) {
+			return excludedBy(stack, enchantment);
 		}
 	}
 
@@ -90,6 +96,20 @@ public final class ItemEnchanter {
 		mutable.set(enchantment, newLevel);
 		stack.set(type, mutable.toImmutable());
 		return newLevel;
+	}
+
+	/** Fortune and Silk Touch never share an item: whichever landed first blocks the other. */
+	public static boolean excludedBy(ItemStack stack, Holder<Enchantment> enchantment) {
+		if (enchantment.is(Enchantments.FORTUNE)) return has(stack, Enchantments.SILK_TOUCH);
+		if (enchantment.is(Enchantments.SILK_TOUCH)) return has(stack, Enchantments.FORTUNE);
+		return false;
+	}
+
+	private static boolean has(ItemStack stack, ResourceKey<Enchantment> key) {
+		for (Holder<Enchantment> h : stack.getOrDefault(componentFor(stack), ItemEnchantments.EMPTY).keySet()) {
+			if (h.is(key)) return true;
+		}
+		return false;
 	}
 
 	public static boolean isLunge(Holder<Enchantment> enchantment) {

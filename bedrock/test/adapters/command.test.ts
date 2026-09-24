@@ -1,14 +1,24 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type * as mc from "@minecraft/server";
-import { handleToggle, registerCommands } from "../../src/adapters/command";
+import { handleNotify, handleToggle, registerCommands } from "../../src/adapters/command";
 import { isEnabled } from "../../src/adapters/state";
-import { COMMAND_ENUM, COMMAND_NAME, PROP_ENABLED } from "../../src/core/config";
+import {
+  COMMAND_ENUM,
+  COMMAND_NAME,
+  NOTIFY_COMMAND_NAME,
+  NOTIFY_SWITCH_ENUM,
+  NOTIFY_TARGET_ENUM,
+  PROP_ENABLED,
+  PROP_NOTIFY,
+} from "../../src/core/config";
+import { makePlayer } from "../fakes/builders";
 import {
   asReal,
   CommandPermissionLevel,
   CustomCommandParamType,
   CustomCommandStatus,
   FakeCustomCommandRegistry,
+  FakeEntity,
   system,
   world,
 } from "../fakes/minecraft-server";
@@ -86,5 +96,132 @@ describe("command", () => {
     expect((reg.invoke(COMMAND_NAME, {}, "status") as mc.CustomCommandResult).message).toBe(
       "Enchantaholic Mode: §cOFF",
     );
+  });
+});
+
+describe("notify command", () => {
+  beforeEach(() => void resetAll());
+
+  const msg = (r: unknown) => (r as mc.CustomCommandResult).message;
+  const ok = (message: string) => ({ status: CustomCommandStatus.Success, message });
+  const bothOn = "Enchant sound: §aON§r, enchant message: §aON";
+
+  it("registers /enchantaholic:notify for any player after the toggle", () => {
+    const reg = registered();
+    expect([...reg.enums.keys()]).toEqual([COMMAND_ENUM, NOTIFY_TARGET_ENUM, NOTIFY_SWITCH_ENUM]);
+    expect(reg.enums.get(NOTIFY_TARGET_ENUM)).toEqual(["sound", "message", "status"]);
+    expect(reg.enums.get(NOTIFY_SWITCH_ENUM)).toEqual(["on", "off"]);
+    const cmd = reg.commands.get(NOTIFY_COMMAND_NAME)?.command;
+    expect(cmd?.permissionLevel).toBe(CommandPermissionLevel.Any);
+    expect(cmd?.cheatsRequired).toBe(false);
+    expect(cmd?.mandatoryParameters).toEqual([{ name: NOTIFY_TARGET_ENUM, type: CustomCommandParamType.Enum }]);
+    expect(cmd?.optionalParameters).toEqual([{ name: NOTIFY_SWITCH_ENUM, type: CustomCommandParamType.Enum }]);
+    // The toggle is unchanged.
+    const toggle = reg.commands.get(COMMAND_NAME)?.command;
+    expect(toggle?.permissionLevel).toBe(CommandPermissionLevel.GameDirectors);
+    expect(toggle?.optionalParameters).toEqual([{ name: COMMAND_ENUM, type: CustomCommandParamType.Enum }]);
+  });
+
+  it("the fake registry rejects an Enum parameter whose enum is not registered (as the engine does)", () => {
+    const reg = new FakeCustomCommandRegistry();
+    const cmd = {
+      name: NOTIFY_COMMAND_NAME,
+      description: "x",
+      permissionLevel: CommandPermissionLevel.Any,
+      mandatoryParameters: [{ name: NOTIFY_TARGET_ENUM, type: CustomCommandParamType.Enum }],
+    };
+    expect(() => reg.registerCommand(asReal<mc.CustomCommand>(cmd), () => undefined)).toThrow(/no registered enum/);
+  });
+
+  it("status for a new player shows both ON", () => {
+    const reg = registered();
+    const player = makePlayer();
+    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "status")).toEqual(ok(bothOn));
+    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "status", "off")).toEqual(ok(bothOn));
+    system.flushRuns();
+    expect(player.props.has(PROP_NOTIFY)).toBe(false);
+  });
+
+  it("sound off is cached at once and persisted after system.run", () => {
+    const reg = registered();
+    const player = makePlayer();
+    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "sound", "off")).toEqual(
+      ok("Enchant sound: §cOFF"),
+    );
+    expect(player.props.has(PROP_NOTIFY)).toBe(false);
+    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "status"))).toBe(
+      "Enchant sound: §cOFF§r, enchant message: §aON",
+    );
+    system.flushRuns();
+    expect(player.props.get(PROP_NOTIFY)).toBe('{"sound":false,"message":true}');
+    expect(world.messages).toHaveLength(0);
+    expect(player.messages).toHaveLength(0);
+  });
+
+  it("message on/off is idempotent", () => {
+    const reg = registered();
+    const player = makePlayer();
+    reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "message", "off");
+    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "message", "off"))).toBe(
+      "Enchant message: §cOFF",
+    );
+    system.flushRuns();
+    expect(player.props.get(PROP_NOTIFY)).toBe('{"sound":true,"message":false}');
+    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "message", "on"))).toBe(
+      "Enchant message: §aON",
+    );
+    system.flushRuns();
+    expect(player.props.get(PROP_NOTIFY)).toBe('{"sound":true,"message":true}');
+  });
+
+  it("no value flips; two flips in the same tick cancel out", () => {
+    const reg = registered();
+    const player = makePlayer();
+    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "message"))).toBe("Enchant message: §cOFF");
+    system.flushRuns();
+    expect(player.props.get(PROP_NOTIFY)).toBe('{"sound":true,"message":false}');
+    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "sound"))).toBe("Enchant sound: §cOFF");
+    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "sound"))).toBe("Enchant sound: §aON");
+    system.flushRuns();
+    expect(player.props.get(PROP_NOTIFY)).toBe('{"sound":true,"message":false}');
+  });
+
+  it("players are independent", () => {
+    const reg = registered();
+    const a = makePlayer({ name: "Alex" });
+    const b = makePlayer({ name: "Steve" });
+    reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: a }, "sound", "off");
+    system.flushRuns();
+    expect(msg(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: b }, "status"))).toBe(bothOn);
+    expect(b.props.has(PROP_NOTIFY)).toBe(false);
+  });
+
+  it.each([
+    ["no source", {}],
+    ["a zombie", { sourceEntity: new FakeEntity("minecraft:zombie") }],
+    ["a command block", { sourceType: "Block", sourceBlock: { typeId: "minecraft:command_block" } }],
+  ])("rejects %s", (_label, origin) => {
+    const reg = registered();
+    expect(reg.invoke(NOTIFY_COMMAND_NAME, origin, "sound", "off")).toEqual({
+      status: CustomCommandStatus.Failure,
+      message: "Only players can change Enchantaholic notifications.",
+    });
+    system.flushRuns();
+    expect(world.messages).toHaveLength(0);
+  });
+
+  it("an undefined or unknown target returns the usage", () => {
+    const reg = registered();
+    const player = makePlayer();
+    const usage = {
+      status: CustomCommandStatus.Failure,
+      message: "Usage: /enchantaholic:notify <sound|message|status> [on|off]",
+    };
+    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player })).toEqual(usage);
+    expect(reg.invoke(NOTIFY_COMMAND_NAME, { sourceEntity: player }, "volume")).toEqual(usage);
+    expect(handleNotify({ sourceEntity: asReal<mc.Entity>(player) }, undefined, "off")).toEqual(usage);
+    system.flushRuns();
+    expect(player.props.has(PROP_NOTIFY)).toBe(false);
+    expect(world.messages).toHaveLength(0);
   });
 });

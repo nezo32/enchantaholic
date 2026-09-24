@@ -4,7 +4,7 @@ import static dev.enchantaholic.test.TestSupport.breakBlock;
 import static dev.enchantaholic.test.TestSupport.breakBlocks;
 import static dev.enchantaholic.test.TestSupport.ench;
 import static dev.enchantaholic.test.TestSupport.maxedAllExcept;
-import static dev.enchantaholic.test.TestSupport.setRule;
+import static dev.enchantaholic.test.TestSupport.setMode;
 import static dev.enchantaholic.test.TestSupport.survivalPlayer;
 import static dev.enchantaholic.test.TestSupport.totalLevels;
 
@@ -29,8 +29,8 @@ import net.minecraft.world.level.block.Blocks;
 /**
  * Server gametests (run by {@code ./gradlew build} through {@code runGameTest}).
  *
- * <p>Concurrency: all tests of a batch share one server, and the game rule is server-global.
- * Every rule-dependent test therefore sets the rule at the start and does all of its breaking
+ * <p>Concurrency: all tests of a batch share one server, and Enchantaholic Mode is server-global.
+ * Every mode-dependent test therefore sets the mode at the start and does all of its breaking
  * and asserting synchronously inside the test method (no delays, no polling), so no other test
  * can run in between. Every test ends with {@code helper.succeed()}.
  */
@@ -42,7 +42,7 @@ public class EnchantaholicGameTests {
 
 	@GameTest
 	public void stoneTriggers(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(0, new ItemStack(Items.STICK));
 		breakBlocks(helper, player, Blocks.STONE, 20);
@@ -53,7 +53,7 @@ public class EnchantaholicGameTests {
 
 	@GameTest
 	public void shortGrassDoesNotTrigger(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(0, new ItemStack(Items.STICK));
 		ItemStack before = player.getInventory().getItem(0).copy();
@@ -68,28 +68,28 @@ public class EnchantaholicGameTests {
 	}
 
 	@GameTest
-	public void ruleOffDoesNotTrigger(GameTestHelper helper) {
-		setRule(helper, false);
+	public void modeOffDoesNotTrigger(GameTestHelper helper) {
+		setMode(helper, false);
 		try {
 			ServerPlayer player = survivalPlayer(helper);
 			player.getInventory().setItem(0, new ItemStack(Items.STICK));
 			ItemStack before = player.getInventory().getItem(0).copy();
 			helper.assertTrue(!BlockBreakHandler.shouldTrigger(helper.getLevel(), player, Blocks.STONE.defaultBlockState()),
-					"shouldTrigger must be false with the rule off");
+					"shouldTrigger must be false with the mode off");
 			breakBlocks(helper, player, Blocks.STONE, 10);
-			helper.assertTrue(ItemStack.matches(before, player.getInventory().getItem(0)), "rule off must not enchant");
+			helper.assertTrue(ItemStack.matches(before, player.getInventory().getItem(0)), "mode off must not enchant");
 		} finally {
-			setRule(helper, true);
+			setMode(helper, true);
 		}
 		helper.succeed();
 	}
 
 	@GameTest
 	public void creativeDoesNotTrigger(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		helper.assertTrue(BlockBreakHandler.shouldTrigger(helper.getLevel(), player, Blocks.STONE.defaultBlockState()),
-				"sanity: survival + rule on + stone triggers");
+				"sanity: survival + mode on + stone triggers");
 
 		player.setGameMode(GameType.CREATIVE);
 		player.getInventory().setItem(0, new ItemStack(Items.STICK));
@@ -196,7 +196,7 @@ public class EnchantaholicGameTests {
 				"plain book: ENCHANTMENTS level");
 
 		// end to end: an enchanted book alone in the inventory, one stone break
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(0, new ItemStack(Items.ENCHANTED_BOOK));
 		breakBlock(helper, player, Blocks.STONE);
@@ -209,7 +209,7 @@ public class EnchantaholicGameTests {
 
 	@GameTest
 	public void armorSlotReachable(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(HEAD, new ItemStack(Items.LEATHER_HELMET));
 		breakBlock(helper, player, Blocks.STONE);
@@ -224,7 +224,7 @@ public class EnchantaholicGameTests {
 
 	@GameTest
 	public void offhandSlotReachable(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(Inventory.SLOT_OFFHAND, new ItemStack(Items.STICK));
 		breakBlock(helper, player, Blocks.STONE);
@@ -234,7 +234,7 @@ public class EnchantaholicGameTests {
 
 	@GameTest
 	public void bodyAndSaddleNeverChosen(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		Inventory inv = player.getInventory();
 		inv.setItem(BODY, new ItemStack(Items.DIAMOND_HORSE_ARMOR));
@@ -252,7 +252,7 @@ public class EnchantaholicGameTests {
 
 	@GameTest
 	public void emptyInventoryNoop(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		breakBlock(helper, player, Blocks.STONE);
 		helper.assertTrue(ItemEnchanter.enchantRandom(player, RandomSource.create(3L)).isEmpty(), "empty inventory: no pick");
@@ -264,7 +264,7 @@ public class EnchantaholicGameTests {
 
 	@GameTest
 	public void anyItemAnyEnchant(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		player.getInventory().setItem(0, new ItemStack(Items.DIRT, 64));
 		breakBlocks(helper, player, Blocks.STONE, 5);
@@ -277,7 +277,7 @@ public class EnchantaholicGameTests {
 
 	@GameTest
 	public void onlyOneItemPerBreak(GameTestHelper helper) {
-		setRule(helper, true);
+		setMode(helper, true);
 		ServerPlayer player = survivalPlayer(helper);
 		Inventory inv = player.getInventory();
 		int[] slots = {0, 7, 20, 38, Inventory.SLOT_OFFHAND};

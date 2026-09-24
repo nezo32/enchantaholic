@@ -1,5 +1,6 @@
 # Enchantaholic release: push tag vX.Y.Z[-pre] (on a commit of main) ->
 #   version -> build-mod || build-addon -> github-release -> curseforge-mod || curseforge-addon
+# Or: Actions -> Release -> Run workflow on main with create-tag to cut the tag from the UI.
 # Everything runs in ONE workflow run: releases created with GITHUB_TOKEN never trigger other workflows.
 # This repo calls the reusable workflows by local path. Other repos: copy .github/templates/release-caller.yml
 # (see docs/ci/REUSABLE_RELEASE_PIPELINE.md). Maintainer runbook: docs/ci/RELEASING.md.
@@ -15,8 +16,12 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to (re)build, release and publish, e.g. v1.2.3
+        description: Tag to (re)build, release and publish, e.g. v1.2.3 (must exist unless create-tag is set)
         required: true
+      create-tag:
+        description: Create the tag on the current tip of main first (run the workflow from main)
+        type: boolean
+        default: false
       skip-curseforge:
         description: Only (re)build and update the GitHub release; do not upload to CurseForge
         type: boolean
@@ -34,7 +39,33 @@ permissions:
   contents: read
 
 jobs:
+  # Optional: cut the tag from the Actions tab instead of pushing it. A tag created with GITHUB_TOKEN does not
+  # start another run, so the release continues in this one.
+  create-tag:
+    if: ${{ inputs.create-tag }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create tag on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          REF: ${{ github.ref }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$REF" == refs/heads/main ]] || { echo "::error::Run the workflow from main to create a tag (got $REF)"; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::Tag '$TAG' is not vX.Y.Z[-pre]"; exit 1; }
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists; re-run without create-tag to rebuild it"; exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$SHA" >/dev/null
+          echo "Created $TAG at $SHA" | tee -a "$GITHUB_STEP_SUMMARY"
+
   version:
+    needs: create-tag
+    if: ${{ !cancelled() && needs.create-tag.result != 'failure' }}
     uses: ./.github/workflows/reusable-version.yml
     with:
       tag: ${{ inputs.tag }}
@@ -42,6 +73,7 @@ jobs:
 
   build-mod:
     needs: version
+    if: ${{ !cancelled() && !failure() }}
     uses: ./.github/workflows/reusable-build-gradle.yml
     with:
       ref: ${{ needs.version.outputs.tag }}
@@ -53,6 +85,7 @@ jobs:
 
   build-addon:
     needs: version
+    if: ${{ !cancelled() && !failure() }}
     uses: ./.github/workflows/reusable-build-node.yml
     with:
       ref: ${{ needs.version.outputs.tag }}
@@ -65,6 +98,7 @@ jobs:
 
   github-release:
     needs: [version, build-mod, build-addon]
+    if: ${{ !cancelled() && !failure() }}
     permissions:
       contents: write
     uses: ./.github/workflows/reusable-github-release.yml
@@ -76,10 +110,12 @@ jobs:
 
   curseforge-mod:
     needs: [version, github-release]
-    if: ${{ !inputs.skip-curseforge && vars.CURSEFORGE_PROJECT_ID != '' }}
+    if: ${{ !cancelled() && !failure() && !inputs.skip-curseforge }}
     uses: ./.github/workflows/reusable-publish-curseforge.yml
     with:
-      project-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
+      # Read inside the job so repository- and Environment-level variables both work.
+      project-id-var: CURSEFORGE_PROJECT_ID
+      environment: ${{ vars.CURSEFORGE_ENVIRONMENT || 'Enchantaholic' }}
       artifact-pattern: fabric-mod
       primary-file: "enchantaholic-!(*-sources).jar"
       additional-files: "enchantaholic-*-sources.jar"
@@ -91,14 +127,16 @@ jobs:
       tag: ${{ needs.version.outputs.tag }}
       dry-run: ${{ inputs.curseforge-dry-run == true }}
     secrets:
-      curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}
 
   curseforge-addon:
     needs: [version, github-release]
-    if: ${{ !inputs.skip-curseforge && vars.CURSEFORGE_BEDROCK_PROJECT_ID != '' }}
+    if: ${{ !cancelled() && !failure() && !inputs.skip-curseforge }}
     uses: ./.github/workflows/reusable-publish-curseforge.yml
     with:
-      project-id: ${{ vars.CURSEFORGE_BEDROCK_PROJECT_ID }}
+      # Read inside the job so repository- and Environment-level variables both work.
+      project-id-var: CURSEFORGE_BEDROCK_PROJECT_ID
+      environment: ${{ vars.CURSEFORGE_ENVIRONMENT || 'Enchantaholic' }}
       api-base: ${{ vars.CURSEFORGE_BEDROCK_API_BASE || 'https://minecraft-bedrock.curseforge.com' }}
       artifact-pattern: bedrock-addon
       primary-file: "enchantaholic-*.mcaddon"
@@ -109,4 +147,4 @@ jobs:
       tag: ${{ needs.version.outputs.tag }}
       dry-run: ${{ inputs.curseforge-dry-run == true }}
     secrets:
-      curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_TOKEN }}

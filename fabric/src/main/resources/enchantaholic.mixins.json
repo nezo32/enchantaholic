@@ -1,0 +1,12 @@
+{
+	"required": true,
+	"package": "dev.enchantaholic.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"LevelStorageAccessMixin",
+		"MinecraftServerAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

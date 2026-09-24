@@ -27,7 +27,7 @@ file in `dist/`, but releases attach only the `.mcaddon`.
 - **Enchantment:** any enchantment, curses included, that is compatible with the item or already on it. `Lunge` goes only
   on spears. When the item can't take any enchantment, another slot is picked. When no item fits, nothing happens.
 - **Stacking:** the enchantment's level goes up by 1 (a new one starts at I). There is no upper limit.
-- **Feedback:** an actionbar message such as `✦ Diamond Pickaxe → Efficiency VI`, plus a quiet sound.
+- **Feedback:** an actionbar message such as `✦ Diamond Pickaxe → Efficiency VI`, plus a quiet sound. Each player can turn either off with `/enchantaholic:notify`.
 
 ### Levels above the vanilla maximum
 
@@ -67,6 +67,22 @@ When a grindstone or anvil removes an enchantment or lowers it below its max, it
 - The state is saved in the world (dynamic property `enchantaholic:enabled`) and survives reloads. A new world starts ON.
 - A change is announced in chat to every player.
 
+### Notifications (any player)
+
+```
+/enchantaholic:notify <sound|message|status> [on|off]
+```
+
+| Usage | Effect |
+|---|---|
+| `/enchantaholic:notify status` | Shows your current settings |
+| `/enchantaholic:notify sound off` / `on` | Turns your enchant sound off or on |
+| `/enchantaholic:notify message off` / `on` | Turns your actionbar message off or on |
+| `/enchantaholic:notify sound` / `message` | Switches that setting |
+
+Every player can use it, and it works with cheats off. Settings are per player (dynamic property `enchantaholic:notify`
+on the player) and are kept across sessions. Both are on by default.
+
 ## Limitations
 
 - Real enchantment levels stop at the vanilla maximum. Levels above it matter in gameplay only for the enchantments in
@@ -105,7 +121,7 @@ Layout:
 | Path | Contents |
 |---|---|
 | `src/core/` | Pure logic: slot and enchantment selection, level math, lore and Roman numerals, bonus formulas. Must not import `@minecraft/*` (ESLint and a test enforce this) |
-| `src/adapters/` | Code that calls the game: events, inventory, enchanting, the command, bonus effects |
+| `src/adapters/` | Code that calls the game: events, inventory, enchanting, the commands, per-player notification settings, bonus effects |
 | `src/main.ts` | Entry point |
 | `pack/` | `manifest.json`, `pack_icon.png`, `texts/` |
 | `test/` | vitest suites and the `@minecraft/server` fake |
@@ -136,3 +152,7 @@ as an operator. Use a `DEBUG=1` build.
 12. A grindstone removes the extra level. An anvil rename keeps it.
 13. Two players on a dedicated server get enchanted independently. `/reload` doesn't duplicate messages or effects.
     Fast mining with a full inventory causes no lag and no content-log errors.
+14. As a non-operator in a world with cheats off, `/enchantaholic:notify status` works. `message off` hides the
+    actionbar but keeps the sound, `sound off` silences the chime but keeps the message, and with both off mining still
+    enchants silently. The settings survive leaving and rejoining the world, and another player's settings are
+    unaffected. A command block running `/enchantaholic:notify status` is refused.

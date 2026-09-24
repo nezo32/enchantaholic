@@ -26,6 +26,7 @@ When the mode is on, each block a player breaks does the following:
 4. **Level:** if the item already has that enchantment, its level goes up by 1. Otherwise the enchantment is added at
    level I.
 5. **Feedback:** the actionbar shows the item and its new level, for example `✦ Diamond Pickaxe → Efficiency VI`.
+   Each player can turn off the sound, the message, or both (see [Notification settings](#notification-settings)).
 
 Difficulty and hardcore settings are never changed. Levels beyond X are shown as Roman numerals (XI, XII and so on).
 
@@ -34,13 +35,27 @@ Difficulty and hardcore settings are never changed. Levels beyond X are shown as
 | | Java (Fabric) | Bedrock (behavior pack) |
 |---|---|---|
 | Game versions | Minecraft Java 26.2–26.3 | Bedrock 26.50+ |
-| Turning it on | **Enchantaholic Mode** ON/OFF button on the Create World → Game tab, or `/gamerule enchantaholic:enchantaholic true` | Activate the behavior pack when you create the world |
-| Default | Off (game rule `false`) | On while the pack is active |
-| Toggling later | `/gamerule enchantaholic:enchantaholic true\|false` | `/enchantaholic:toggle [on\|off\|status]`, operators only (works with cheats off) |
+| Turning it on | **Enchantaholic Mode** ON/OFF button on the Create World → Game tab (saved with the world), or `/enchantaholic on` | Activate the behavior pack when you create the world |
+| Default | Off | On while the pack is active |
+| Toggling later | `/enchantaholic [on\|off\|status]`, operators only (permission level 2, like /gamerule) | `/enchantaholic:toggle [on\|off\|status]`, operators only (works with cheats off) |
 | Enchantment/item pairs | Any enchantment on any item (compatibility is not checked) | Only pairs Bedrock accepts: an incompatible pick is rerolled (another enchantment or another item) |
 | Level cap | 255 (Java's hard limit) | No cap on the tracked level. The **real** enchantment stops at the vanilla max, and the true level is kept in a lore line and a dynamic property on the item |
 | Levels above the vanilla max | Real enchantment levels, so vanilla formulas apply at every level (see [Known quirks](#known-quirks-java)) | Extra bonus effects only for Sharpness, Smite, Bane of Arthropods, Power, the Protection family (Protection, Fire/Blast/Projectile Protection, Feather Falling) and Efficiency. Other enchantments show the level only |
 | Achievements | Unaffected | Disabled in the world, because Minecraft disables them for any behavior pack |
+| Notification settings (per player) | Mod Menu → Enchantaholic → config screen, or the client command `/enchantaholic-notify <sound\|message\|status> [on\|off]` (needs the mod on the client; saved in `config/enchantaholic.json`) | `/enchantaholic:notify <sound\|message\|status> [on\|off]`, any player, works with cheats off |
+
+## Notification settings
+
+Every enchant shows an actionbar message and plays a quiet chime. Each player can turn off either one, or both:
+
+- **Java:** with [Mod Menu](https://modrinth.com/mod/modmenu) installed, open Mods → Enchantaholic → the config
+  button, and switch **Enchant sound** / **Enchant message**. Without Mod Menu, use the client command
+  `/enchantaholic-notify sound off`, `/enchantaholic-notify message off`, or `/enchantaholic-notify status`.
+  Settings are stored on your computer in `config/enchantaholic.json` and apply on any server that runs
+  Enchantaholic. Players who join without the mod on their client always get the default message and sound.
+- **Bedrock:** `/enchantaholic:notify sound off`, `/enchantaholic:notify message off`,
+  `/enchantaholic:notify status`. No operator rights or cheats are needed, and the settings are saved with your
+  player in that world.
 
 ## Install
 
@@ -49,9 +64,17 @@ Difficulty and hardcore settings are never changed. Levels beyond X are shown as
 1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 26.2 or 26.3, and run the game on Java 25.
 2. Put [Fabric API](https://modrinth.com/mod/fabric-api) and `enchantaholic-<version>.jar` in your `mods/` folder. Get
    the jar from [GitHub releases](https://github.com/nezo32/enchantaholic/releases) or CurseForge.
+   Optional: [Mod Menu](https://modrinth.com/mod/modmenu) for the settings screen.
 3. Turn the mode on in one of two ways:
    - **New world:** Create World → Game tab → set **Enchantaholic Mode** to **ON**.
-   - **Existing world:** `/gamerule enchantaholic:enchantaholic true`. The rule is `false` by default.
+   - **Existing world or dedicated server:** an operator runs `/enchantaholic on` (`/enchantaholic status` shows the
+     current state). It is off by default. In single-player this needs cheats: Allow Commands on, or Open to LAN with
+     Allow Cheats on.
+
+**Upgrading from 0.1.0:** 0.1.0 used a game rule (`enchantaholic:enchantaholic`) instead. Worlds that had it on are
+switched ON automatically the first time they load with 0.2.0. That first load logs one harmless
+`Unknown registry key … enchantaholic:enchantaholic` error; the other game rules are kept, and the stale entry is
+dropped on the next save.
 
 ### Bedrock Edition
 

@@ -923,6 +923,12 @@ export class FakeCustomCommandRegistry {
     guard("CustomCommandRegistry.registerCommand");
     if (!customCommand.name.includes(":")) throw new Error("Custom command names must be namespaced");
     if (this.commands.has(customCommand.name)) throw new Error(`Command ${customCommand.name} already registered`);
+    // The engine resolves an Enum parameter by its name, so the enum must already be registered.
+    for (const param of [...(customCommand.mandatoryParameters ?? []), ...(customCommand.optionalParameters ?? [])]) {
+      if (param.type === CustomCommandParamType.Enum && !this.enums.has(param.name)) {
+        throw new Error(`Enum parameter ${param.name} has no registered enum`);
+      }
+    }
     this.commands.set(customCommand.name, { command: customCommand, callback });
   }
 

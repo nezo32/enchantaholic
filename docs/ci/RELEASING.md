@@ -129,9 +129,13 @@ gh label create fabric         --color dbab79 --description "Java / Fabric mod" 
 gh label create bedrock        --color 5319e7 --description "Bedrock add-on"         --force
 ```
 
+### Releasing from the Actions tab (no local git needed)
+
+Actions → **Release** → Run workflow, branch **main**, tag `vX.Y.Z`, tick **create-tag**. The workflow creates the tag on the tip of `main` and continues with build → GitHub release → CurseForge in the same run. Without create-tag the tag must already exist (that mode re-runs an existing release).
+
 ### Secrets and variables
 
-Settings → Secrets and variables → Actions:
+Settings → Secrets and variables → Actions. The CurseForge token and project ids may be repository-level **or** live in the GitHub Environment `Enchantaholic` (the upload jobs run in it; override the name with the repository variable `CURSEFORGE_ENVIRONMENT`). A missing project id shows up as a warning in the run, not as a silently skipped job.
 
 | Kind | Name | Value |
 |---|---|---|

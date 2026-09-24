@@ -3,6 +3,7 @@
 	"package": "dev.enchantaholic.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
+		"CreateWorldScreenMixin",
 		"GameTabMixin"
 	],
 	"injectors": {

@@ -16,7 +16,20 @@ if (fabricApiVersion == null) {
 	throw new GradleException("Unsupported -Pmc=${mc}. Supported: 26.3, 26.2")
 }
 
-repositories {}
+def modMenuVersion = project.property("modmenu_${mc.replace('.', '_')}")
+
+repositories {
+	// Mod Menu: only from TerraformersMC, never looked up on Maven Central
+	exclusiveContent {
+		forRepository {
+			maven {
+				name = "TerraformersMC"
+				url = "https://maven.terraformersmc.com/releases/"
+			}
+		}
+		filter { includeGroup "com.terraformersmc" }
+	}
+}
 
 loom {
 	splitEnvironmentSourceSets()
@@ -45,6 +58,8 @@ dependencies {
 	minecraft "com.mojang:minecraft:${mc}"
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${fabricApiVersion}"
+	// optional integration: compile against the API only; never on the runtime classpath or in the jar
+	clientCompileOnly "com.terraformersmc:modmenu:${modMenuVersion}"
 
 	testImplementation "org.junit.jupiter:junit-jupiter:5.13.4"
 	testRuntimeOnly "org.junit.platform:junit-platform-launcher"

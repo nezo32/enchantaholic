@@ -46,6 +46,7 @@ import {
 const PROP_LEVELS = "enchantaholic:levels";
 const LORE_TAG = "§e§h§r";
 const COMMAND = "enchantaholic:toggle";
+const NOTIFY = "enchantaholic:notify";
 const EQUIP = [EquipmentSlot.Head, EquipmentSlot.Chest, EquipmentSlot.Legs, EquipmentSlot.Feet, EquipmentSlot.Offhand];
 
 let tmpDir: string;
@@ -247,6 +248,7 @@ describe("bundled main.js in a simulated runtime", () => {
     expect(world.beforeEvents.entityHurt.count).toBe(1);
     expect(world.afterEvents.entitySpawn.count).toBe(1);
     expect(world.afterEvents.entityRemove.count).toBe(1);
+    expect(world.afterEvents.playerLeave.count).toBe(1); // notify-prefs cache cleanup
     expect(system.intervals).toHaveLength(1);
     const cmd = registry.commands.get(COMMAND)?.command;
     expect(cmd?.cheatsRequired).toBe(false);
@@ -356,6 +358,26 @@ describe("bundled main.js in a simulated runtime", () => {
     runCommand(); // no argument flips
     expect(world.getDynamicProperty("enchantaholic:enabled")).toBe(true);
     expect(breakAndDiff(p)).toHaveLength(1);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("/enchantaholic:notify is open to any player, and message off hides the actionbar but keeps enchanting", () => {
+    const cmd = registry.commands.get(NOTIFY)?.command;
+    expect(cmd?.permissionLevel).toBe(0); // Any
+    expect(cmd?.cheatsRequired).toBe(false);
+    const p = makePlayer({ inv: { 0: sword() } });
+    world.players.push(p);
+    const r = registry.invoke(NOTIFY, { sourceEntity: p }, "message", "off") as { status: number; message?: string };
+    expect(r).toEqual({ status: 0, message: "Enchant message: §cOFF" });
+    system.flushRuns();
+    expect(p.getDynamicProperty(NOTIFY)).toBe('{"sound":true,"message":false}');
+    const before = state(p.container.peek(0));
+    breakBlock(p);
+    expect(JSON.stringify(state(p.container.peek(0)))).not.toBe(JSON.stringify(before));
+    expect(p.onScreenDisplay.actionBars).toHaveLength(0);
+    expect(p.sounds).toHaveLength(1);
+    const s = registry.invoke(NOTIFY, { sourceEntity: p }, "status") as { message?: string };
+    expect(s.message).toBe("Enchant sound: §aON§r, enchant message: §cOFF");
     expect(warn).not.toHaveBeenCalled();
   });
 

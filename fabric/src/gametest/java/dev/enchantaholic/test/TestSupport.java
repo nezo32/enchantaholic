@@ -1,9 +1,9 @@
 package dev.enchantaholic.test;
 
 import com.mojang.authlib.GameProfile;
-import dev.enchantaholic.Enchantaholic;
 import dev.enchantaholic.ItemEnchanter;
 import dev.enchantaholic.core.Levels;
+import dev.enchantaholic.mode.EnchantaholicMode;
 import io.netty.channel.embedded.EmbeddedChannel;
 import it.unimi.dsi.fastutil.objects.Object2IntMap;
 import java.util.Arrays;
@@ -53,12 +53,15 @@ public final class TestSupport {
 	}
 
 	/**
-	 * Sets the game rule. Game rules are server-global and gametests share one server, so every
-	 * rule-dependent test sets the rule itself and does all of its work synchronously afterwards.
+	 * Sets Enchantaholic Mode. It is per world (server-global) and gametests share one server, so every
+	 * mode-dependent test sets it itself and does all of its work synchronously afterwards.
 	 */
-	public static void setRule(GameTestHelper h, boolean value) {
-		ServerLevel level = h.getLevel();
-		level.getGameRules().set(Enchantaholic.ENCHANTAHOLIC, value, level.getServer());
+	public static void setMode(GameTestHelper h, boolean value) {
+		EnchantaholicMode.set(h.getLevel().getServer(), value);
+	}
+
+	public static boolean mode(GameTestHelper h) {
+		return EnchantaholicMode.isEnabled(h.getLevel().getServer());
 	}
 
 	/** Places {@code b} at {@link #BREAK_POS} and has the player break it (fires PlayerBlockBreakEvents.AFTER). */

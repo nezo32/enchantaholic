@@ -1,3 +1,4 @@
+import { customDef, CUSTOM_ENCHANTS } from "./custom/roster";
 import { normalizeId } from "./ids";
 
 /** Explicit English display names for all vanilla enchantment ids. */
@@ -47,14 +48,18 @@ const NAMES: Readonly<Record<string, string>> = {
 };
 
 const BY_NAME: ReadonlyMap<string, string> = new Map(Object.entries(NAMES).map(([id, name]) => [name, id]));
+/** Custom enchantment names (disjoint from the vanilla table). */
+const CUSTOM_BY_NAME: ReadonlyMap<string, string> = new Map(CUSTOM_ENCHANTS.map((d) => [d.name, d.id]));
 
 export const CURSES: ReadonlySet<string> = new Set(["minecraft:binding", "minecraft:vanishing"]);
 
-/** Explicit table for vanilla ids; fallback: title-cased path with "_" → " ". */
+/** Explicit table for vanilla ids, then custom names; fallback: title-cased path with "_" → " ". */
 export function displayName(enchantId: string): string {
   const id = normalizeId(enchantId);
   const known = NAMES[id];
   if (known !== undefined) return known;
+  const custom = customDef(id);
+  if (custom) return custom.name;
   const path = id.slice(id.indexOf(":") + 1);
   return path
     .split("_")
@@ -63,11 +68,13 @@ export function displayName(enchantId: string): string {
     .join(" ");
 }
 
-/** Reverse of the explicit table. */
+/** Reverse of the explicit table (vanilla first, then custom names). */
 export function idFromDisplayName(name: string): string | undefined {
-  return BY_NAME.get(name);
+  return BY_NAME.get(name) ?? CUSTOM_BY_NAME.get(name);
 }
 
+/** Vanilla curses (CURSES) and the custom curses. */
 export function isCurse(enchantId: string): boolean {
-  return CURSES.has(normalizeId(enchantId));
+  const id = normalizeId(enchantId);
+  return CURSES.has(id) || customDef(id)?.curse === true;
 }

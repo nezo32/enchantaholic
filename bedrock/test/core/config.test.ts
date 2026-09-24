@@ -22,4 +22,13 @@ describe("config", () => {
     }
     expect(cfg.NOTIFY_TARGET_ENUM).not.toBe(cfg.COMMAND_ENUM);
   });
+
+  it("namespaces the custom enchantment constants", () => {
+    expect(cfg.PROP_CUSTOM_ENABLED).toBe("enchantaholic:custom");
+    expect(cfg.PROP_CUSTOM_LEVELS).toBe("enchantaholic:custom_levels");
+    expect(cfg.CUSTOM_COMMAND_NAME).toBe("enchantaholic:custom");
+    expect(cfg.CUSTOM_LABEL).toBe("Custom Enchantments");
+    expect(cfg.PROP_CUSTOM_LEVELS).not.toBe(cfg.PROP_LEVELS);
+  });
 });
+

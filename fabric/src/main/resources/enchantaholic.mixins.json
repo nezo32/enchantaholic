@@ -4,7 +4,11 @@
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
 		"LevelStorageAccessMixin",
-		"MinecraftServerAccessor"
+		"MinecraftServerAccessor",
+		"PlayerMixin",
+		"ProjectileMixin",
+		"ProjectileWeaponItemMixin",
+		"ServerPlayerGameModeMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

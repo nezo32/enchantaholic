@@ -1,5 +1,6 @@
 import { MinecraftEnchantmentTypes } from "@minecraft/vanilla-data";
 import { describe, expect, it } from "vitest";
+import { CUSTOM_ENCHANTS } from "../../src/core/custom/roster";
 import { CURSES, displayName, idFromDisplayName, isCurse } from "../../src/core/enchant-names";
 
 const VANILLA = Object.values(MinecraftEnchantmentTypes) as string[];
@@ -42,5 +43,20 @@ describe("enchant names", () => {
     expect(VANILLA.filter(isCurse).sort()).toEqual(["minecraft:binding", "minecraft:vanishing"]);
     expect(isCurse("binding")).toBe(true);
     expect(isCurse("minecraft:mending")).toBe(false);
+  });
+
+  it("custom ids have display names that round-trip", () => {
+    for (const d of CUSTOM_ENCHANTS) {
+      expect(displayName(d.id)).toBe(d.name);
+      expect(idFromDisplayName(d.name)).toBe(d.id);
+    }
+    expect(displayName("enchantaholic:hiccups")).toBe("Curse of Hiccups");
+  });
+
+  it("custom curses are curses; CURSES stays vanilla-only", () => {
+    expect(isCurse("enchantaholic:butterfingers")).toBe(true);
+    expect(isCurse("enchantaholic:hiccups")).toBe(true);
+    expect(isCurse("enchantaholic:vein_miner")).toBe(false);
+    expect(CURSES.has("enchantaholic:hiccups")).toBe(false);
   });
 });

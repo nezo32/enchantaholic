@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildEnchantMessage, statusText } from "../../src/core/message";
+import { CUSTOM_ENCHANTS } from "../../src/core/custom/roster";
+import {
+  buildEnchantMessage,
+  CUSTOM_MODE_OFF_HINT,
+  customChangedText,
+  customStatusText,
+  statusText,
+} from "../../src/core/message";
 
 const SHARP = { id: "minecraft:sharpness", maxLevel: 5 };
 const BINDING = { id: "minecraft:binding", maxLevel: 1 };
@@ -40,3 +47,21 @@ describe("statusText", () => {
     expect(statusText(false)).toBe("Enchantaholic Mode: §cOFF");
   });
 });
+
+describe("custom enchantment texts", () => {
+  it("status and change replies", () => {
+    expect(customStatusText(true)).toBe("Custom Enchantments: §aON");
+    expect(customStatusText(false)).toBe("Custom Enchantments: §cOFF");
+    expect(customChangedText(true)).toBe("Custom Enchantments are now §aON§r for this world");
+    expect(customChangedText(false)).toBe("Custom Enchantments are now §cOFF§r for this world");
+    expect(CUSTOM_MODE_OFF_HINT).toContain("/enchantaholic:toggle on");
+  });
+
+  it("custom curses are red, customs aqua, levels above 5 gold", () => {
+    const hiccups = CUSTOM_ENCHANTS.find((d) => d.key === "hiccups")!;
+    const magnet = CUSTOM_ENCHANTS.find((d) => d.key === "magnet")!;
+    expect(buildEnchantMessage({ localizationKey: "k" }, hiccups, 2)[3]).toEqual({ text: "§cCurse of Hiccups II" });
+    expect(buildEnchantMessage({ localizationKey: "k" }, magnet, 7)[3]).toEqual({ text: "§bMagnet §6VII" });
+  });
+});
+

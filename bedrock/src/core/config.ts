@@ -33,3 +33,9 @@ export const NOTIFY_COMMAND_NAME = "enchantaholic:notify";
 export const NOTIFY_TARGET_ENUM = "enchantaholic:notify_target";
 /** Enum values: on | off. */
 export const NOTIFY_SWITCH_ENUM = "enchantaholic:notify_switch";
+/** World dynamic property (boolean). Missing/anything but true = OFF. */
+export const PROP_CUSTOM_ENABLED = "enchantaholic:custom";
+/** Item dynamic property (JSON {id: level}) with custom enchant levels; non-stackable items only. */
+export const PROP_CUSTOM_LEVELS = "enchantaholic:custom_levels";
+export const CUSTOM_COMMAND_NAME = "enchantaholic:custom";
+export const CUSTOM_LABEL = "Custom Enchantments";

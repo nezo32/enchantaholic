@@ -82,6 +82,50 @@ class LangFileTest {
 		assertTrue(message.contains("%1$s") && message.contains("%2$s"), "message placeholders: " + message);
 	}
 
+	static final String[] CUSTOM_IDS = {"vein_miner", "barrage", "yeet", "kaboom", "party_popper", "chicken_rain",
+			"midas_touch", "magnet", "moon_boots", "butterfingers", "hiccups"};
+
+	@Test
+	void customEnchantmentKeysPresent() {
+		for (String id : CUSTOM_IDS) {
+			for (String key : new String[] {"enchantment.enchantaholic." + id, "enchantment.enchantaholic." + id + ".desc"}) {
+				assertTrue(lang.has(key), "missing " + key);
+				assertFalse(lang.get(key).getAsString().isBlank(), "blank " + key);
+			}
+		}
+		assertTrue(lang.get("enchantment.enchantaholic.butterfingers").getAsString().startsWith("Curse of"), "butterfingers is a curse");
+		assertTrue(lang.get("enchantment.enchantaholic.hiccups").getAsString().startsWith("Curse of"), "hiccups is a curse");
+		for (String key : new String[] {
+				"enchantaholic.createWorld.customToggle",
+				"enchantaholic.createWorld.customToggle.tooltip",
+				"enchantaholic.command.custom.on",
+				"enchantaholic.command.custom.off",
+				"enchantaholic.command.custom.status.on",
+				"enchantaholic.command.custom.status.off"}) {
+			assertTrue(lang.has(key), "missing " + key);
+			assertFalse(lang.get(key).getAsString().isBlank(), "blank " + key);
+		}
+		assertTrue(lang.get("enchantaholic.createWorld.customToggle.tooltip").getAsString().contains("/enchantaholic custom"),
+				"tooltip names the command");
+	}
+
+	/** Every enchantment JSON in the mod datapack has a name (the ids list above is complete) and the English name as fallback. */
+	@Test
+	void everyEnchantmentJsonHasLang() throws IOException {
+		for (String id : CUSTOM_IDS) {
+			try (InputStream in = LangFileTest.class.getResourceAsStream("/data/enchantaholic/enchantment/" + id + ".json")) {
+				assertNotNull(in, "missing data/enchantaholic/enchantment/" + id + ".json");
+				try (Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
+					JsonObject json = JsonParser.parseReader(reader).getAsJsonObject();
+					JsonObject description = json.getAsJsonObject("description");
+					assertEquals("enchantment.enchantaholic." + id, description.get("translate").getAsString(), id);
+					// clients without the mod (vanilla) have no lang file: they show the fallback
+					assertEquals(lang.get("enchantment.enchantaholic." + id).getAsString(), description.get("fallback").getAsString(), id + " fallback");
+				}
+			}
+		}
+	}
+
 	@Test
 	void noGameruleKeys() {
 		for (String key : lang.keySet()) {

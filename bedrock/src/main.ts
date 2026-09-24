@@ -1,5 +1,6 @@
 import { system, world } from "@minecraft/server";
 import { registerCommands } from "./adapters/command";
+import { registerCustomEffects } from "./adapters/custom";
 import { registerEffects } from "./adapters/effects";
 import { registerEnchanter } from "./adapters/enchanter";
 import { safe } from "./adapters/log";
@@ -14,6 +15,7 @@ world.afterEvents.worldLoad.subscribe(
   safe("load", () => {
     registerEnchanter();
     registerEffects();
+    registerCustomEffects();
     registerNotifyPrefs();
     console.info(`[Enchantaholic] v${__ENCHANTAHOLIC_VERSION__} loaded`);
   }),

@@ -21,13 +21,20 @@ describe("main", () => {
     expect(customCommandRegistry.commands.has(COMMAND_NAME)).toBe(true);
   });
 
-  it("worldLoad wires the enchanter, the hurt dispatcher, arrow tracking and one interval", () => {
+  it("worldLoad wires the enchanter, the overcap effects and the custom effects", () => {
     world.afterEvents.worldLoad.emit({});
-    expect(world.afterEvents.playerBreakBlock.count).toBe(1);
-    expect(world.beforeEvents.entityHurt.count).toBe(1);
-    expect(world.afterEvents.entitySpawn!.count).toBe(1);
-    expect(world.afterEvents.entityRemove!.count).toBe(1);
-    expect(system.intervals).toHaveLength(1);
-    expect(system.intervals[0]?.ticks).toBe(20);
+    // Enchanter + custom-effect break dispatch.
+    expect(world.afterEvents.playerBreakBlock.count).toBe(2);
+    // Overcap hurt dispatch + Moon Boots fall guard.
+    expect(world.beforeEvents.entityHurt.count).toBe(2);
+    // Power arrow tracking + Barrage/Kaboom projectile dispatch.
+    expect(world.afterEvents.entitySpawn!.count).toBe(2);
+    expect(world.afterEvents.entityRemove!.count).toBe(2);
+    expect(world.afterEvents.entityHitEntity.count).toBe(1);
+    expect(world.afterEvents.projectileHitBlock.count).toBe(1);
+    expect(world.afterEvents.projectileHitEntity.count).toBe(1);
+    expect(world.afterEvents.entityDie.count).toBe(1);
+    // Efficiency (20), Magnet (10), Moon Boots (10), Hiccups (200); the vein loop starts lazily.
+    expect(system.intervals.map((i) => i.ticks)).toEqual([20, 10, 10, 200]);
   });
 });

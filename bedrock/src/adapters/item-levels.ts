@@ -1,5 +1,7 @@
 import { ItemComponentTypes, type ItemEnchantableComponent, type ItemStack } from "@minecraft/server";
-import { NON_ENCHANTABLE_OVERRIDE, PROP_LEVELS } from "../core/config";
+import { NON_ENCHANTABLE_OVERRIDE, PROP_CUSTOM_LEVELS, PROP_LEVELS } from "../core/config";
+import { customLevelsFrom, withoutCustoms } from "../core/custom/levels";
+import type { CustomId } from "../core/custom/roster";
 import type { EnchantInfo } from "../core/eligibility";
 import { normalizeId } from "../core/ids";
 import { decodeLevels, encodeLevels } from "../core/level-codec";
@@ -38,10 +40,11 @@ function safeLore(item: ItemStack): string[] {
 
 /**
  * Stored true levels above max: the managed lore map, overlaid by the item dynamic property
- * (source of truth) on non-stackable items.
+ * (source of truth) on non-stackable items. Custom enchantments are excluded (see readCustoms):
+ * they have no registry max, so pruneExtras would drop them.
  */
 export function readExtras(item: ItemStack): Map<string, number> {
-  const { managed } = splitLore(safeLore(item));
+  const managed = withoutCustoms(splitLore(safeLore(item)).managed);
   if (!item.isStackable) {
     let raw: unknown;
     try {
@@ -51,7 +54,67 @@ export function readExtras(item: ItemStack): Map<string, number> {
     }
     for (const [id, level] of decodeLevels(raw)) managed.set(normalizeId(id), level);
   }
-  return managed;
+  return withoutCustoms(managed);
+}
+
+/** All custom levels on the item (lore ∪ dynprop; dynprop wins on non-stackables). Never throws. */
+export function readCustoms(item: ItemStack): Map<CustomId, number> {
+  try {
+    const stackable = item.isStackable;
+    let raw: unknown;
+    if (!stackable) {
+      try {
+        raw = item.getDynamicProperty(PROP_CUSTOM_LEVELS);
+      } catch {
+        raw = undefined;
+      }
+    }
+    return customLevelsFrom(safeLore(item), raw, stackable);
+  } catch {
+    return new Map();
+  }
+}
+
+/** Level of one custom enchant; 0 for undefined item, absent enchant, or error. Never throws. Does NOT check the setting. */
+export function getCustomLevel(item: ItemStack | undefined, id: CustomId): number {
+  if (!item) return 0;
+  return readCustoms(item).get(id) ?? 0;
+}
+
+/** Recomposes the managed lore lines from `managed` (vanilla extras ∪ customs); writes only on change. */
+function writeManagedLore(item: ItemStack, managed: ReadonlyMap<string, number>): void {
+  const current = safeLore(item);
+  const next = composeLore(splitLore(current).user, managed);
+  if (!sameLines(current, next)) {
+    try {
+      item.setLore(next);
+    } catch (err) {
+      warnOnce("lore", err);
+    }
+  }
+}
+
+/** Persists customs: dynprop (non-stackable, skip if unchanged) + recomposed lore that keeps vanilla-overcap lines. Never throws. */
+export function writeCustoms(item: ItemStack, customs: ReadonlyMap<CustomId, number>): void {
+  const clean = new Map<string, number>();
+  for (const [id, level] of customs) if (Number.isSafeInteger(level) && level >= 1) clean.set(id, level);
+  let stackable: boolean;
+  try {
+    stackable = item.isStackable;
+  } catch {
+    stackable = true;
+  }
+  if (!stackable) {
+    try {
+      const encoded = encodeLevels(clean);
+      if (item.getDynamicProperty(PROP_CUSTOM_LEVELS) !== encoded) item.setDynamicProperty(PROP_CUSTOM_LEVELS, encoded);
+    } catch (err) {
+      warnOnce("dynprop", err);
+    }
+  }
+  const managed = readExtras(item);
+  for (const [id, level] of clean) managed.set(id, level);
+  writeManagedLore(item, managed);
 }
 
 /** Resolved true level; stored extras are consulted only when the vanilla level is at max (D9). */
@@ -103,15 +166,10 @@ export function writeExtras(
       warnOnce("dynprop", err);
     }
   }
-  const current = safeLore(item);
-  const next = composeLore(splitLore(current).user, pruned);
-  if (!sameLines(current, next)) {
-    try {
-      item.setLore(next);
-    } catch (err) {
-      warnOnce("lore", err);
-    }
-  }
+  // Custom lines have no registry max; keep them as they are (they are not part of `extras`).
+  const managed = new Map<string, number>(withoutCustoms(pruned));
+  for (const [id, level] of readCustoms(item)) managed.set(id, level);
+  writeManagedLore(item, managed);
 }
 
 /**
@@ -129,6 +187,7 @@ export function makeProbe(item: ItemStack, reg: EnchantRegistry): ItemProbe {
     return cachedEnch;
   };
   let extras: Map<string, number> | undefined;
+  let customs: Map<CustomId, number> | undefined;
   return {
     typeId: item.typeId,
     get enchantable(): boolean {
@@ -155,6 +214,10 @@ export function makeProbe(item: ItemStack, reg: EnchantRegistry): ItemProbe {
       } catch {
         return false;
       }
+    },
+    customLevel(id: string): number {
+      customs ??= readCustoms(item);
+      return customs.get(id as CustomId) ?? 0;
     },
   };
 }

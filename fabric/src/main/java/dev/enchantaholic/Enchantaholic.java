@@ -1,5 +1,6 @@
 package dev.enchantaholic;
 
+import dev.enchantaholic.custom.CustomEffects;
 import dev.enchantaholic.mode.ModeBootstrap;
 import dev.enchantaholic.mode.ModeCommand;
 import dev.enchantaholic.net.EnchantedPayload;
@@ -18,6 +19,7 @@ public final class Enchantaholic implements ModInitializer {
 	public void onInitialize() {
 		EnchantedPayload.register();
 		PlayerBlockBreakEvents.AFTER.register(BlockBreakHandler::onAfterBreak);
+		CustomEffects.register(); // after the roll handler: effects see the post-roll inventory
 		ServerLifecycleEvents.SERVER_STARTING.register(ModeBootstrap::onServerStarting);
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> ModeCommand.register(dispatcher));
 	}

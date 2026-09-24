@@ -1,13 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type * as mc from "@minecraft/server";
-import { handleNotify, handleToggle, registerCommands } from "../../src/adapters/command";
-import { isEnabled } from "../../src/adapters/state";
+import { handleCustom, handleNotify, handleToggle, registerCommands } from "../../src/adapters/command";
+import { isCustomEnabled, isEnabled } from "../../src/adapters/state";
 import {
   COMMAND_ENUM,
   COMMAND_NAME,
+  CUSTOM_COMMAND_NAME,
   NOTIFY_COMMAND_NAME,
   NOTIFY_SWITCH_ENUM,
   NOTIFY_TARGET_ENUM,
+  PROP_CUSTOM_ENABLED,
   PROP_ENABLED,
   PROP_NOTIFY,
 } from "../../src/core/config";
@@ -225,3 +227,80 @@ describe("notify command", () => {
     expect(world.messages).toHaveLength(0);
   });
 });
+
+describe("custom command", () => {
+  beforeEach(() => void resetAll());
+
+  const msg = (r: unknown) => (r as mc.CustomCommandResult).message;
+  const ON = "Custom Enchantments are now §aON§r for this world";
+  const OFF = "Custom Enchantments are now §cOFF§r for this world";
+
+  it("is registered last, for game directors, cheats off, with a mandatory state enum (no new enum)", () => {
+    const reg = registered();
+    expect([...reg.commands.keys()]).toEqual([COMMAND_NAME, NOTIFY_COMMAND_NAME, CUSTOM_COMMAND_NAME]);
+    expect([...reg.enums.keys()]).toEqual([COMMAND_ENUM, NOTIFY_TARGET_ENUM, NOTIFY_SWITCH_ENUM]);
+    const cmd = reg.commands.get(CUSTOM_COMMAND_NAME)?.command;
+    expect(cmd?.permissionLevel).toBe(CommandPermissionLevel.GameDirectors);
+    expect(cmd?.cheatsRequired).toBe(false);
+    expect(cmd?.mandatoryParameters).toEqual([{ name: COMMAND_ENUM, type: CustomCommandParamType.Enum }]);
+    expect(cmd?.optionalParameters ?? []).toEqual([]);
+  });
+
+  it("status is OFF by default and does not write", () => {
+    const reg = registered();
+    expect(reg.invoke(CUSTOM_COMMAND_NAME, {}, "status")).toEqual({
+      status: CustomCommandStatus.Success,
+      message: "Custom Enchantments: §cOFF",
+    });
+    system.flushRuns();
+    expect(world.props.has(PROP_CUSTOM_ENABLED)).toBe(false);
+    expect(world.messages).toHaveLength(0);
+  });
+
+  it("on is deferred to system.run (restricted-safe) and broadcast afterwards", () => {
+    const reg = registered();
+    expect(reg.invoke(CUSTOM_COMMAND_NAME, {}, "on")).toEqual({ status: CustomCommandStatus.Success, message: ON });
+    expect(world.props.has(PROP_CUSTOM_ENABLED)).toBe(false);
+    expect(world.messages).toHaveLength(0);
+    expect(msg(reg.invoke(CUSTOM_COMMAND_NAME, {}, "status"))).toBe("Custom Enchantments: §aON");
+    system.flushRuns();
+    expect(world.getDynamicProperty(PROP_CUSTOM_ENABLED)).toBe(true);
+    expect(isCustomEnabled()).toBe(true);
+    expect(world.messages).toEqual([ON]);
+    expect(isEnabled()).toBe(true); // the mode is untouched
+  });
+
+  it("off after on in the same tick: status reflects the pending value, last write wins", () => {
+    const reg = registered();
+    reg.invoke(CUSTOM_COMMAND_NAME, {}, "on");
+    expect(msg(reg.invoke(CUSTOM_COMMAND_NAME, {}, "off"))).toBe(OFF);
+    expect(msg(reg.invoke(CUSTOM_COMMAND_NAME, {}, "status"))).toBe("Custom Enchantments: §cOFF");
+    system.flushRuns();
+    expect(isCustomEnabled()).toBe(false);
+    expect(world.getDynamicProperty(PROP_CUSTOM_ENABLED)).toBe(false);
+    expect(world.messages).toEqual([ON, OFF]);
+  });
+
+  it("undefined or unknown argument → Failure with usage, nothing written", () => {
+    const reg = registered();
+    const usage = { status: CustomCommandStatus.Failure, message: "Usage: /enchantaholic:custom <on|off|status>" };
+    expect(reg.invoke(CUSTOM_COMMAND_NAME, {})).toEqual(usage);
+    expect(reg.invoke(CUSTOM_COMMAND_NAME, {}, "maybe")).toEqual(usage);
+    expect(handleCustom(undefined)).toEqual(usage);
+    system.flushRuns();
+    expect(world.props.has(PROP_CUSTOM_ENABLED)).toBe(false);
+    expect(world.messages).toHaveLength(0);
+  });
+
+  it("turning customs on while the mode is off adds a hint to the reply only", () => {
+    const reg = registered();
+    reg.invoke(COMMAND_NAME, {}, "off");
+    const m = msg(reg.invoke(CUSTOM_COMMAND_NAME, {}, "on")) ?? "";
+    expect(m.startsWith(`${ON}\n`)).toBe(true);
+    expect(m).toContain("/enchantaholic:toggle on");
+    system.flushRuns();
+    expect(world.messages).toEqual(["Enchantaholic Mode: §cOFF", ON]);
+    expect(msg(reg.invoke(CUSTOM_COMMAND_NAME, {}, "off"))).toBe(OFF);
+  });
+});
+

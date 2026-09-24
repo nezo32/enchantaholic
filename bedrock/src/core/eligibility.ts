@@ -4,6 +4,8 @@ import { isSpear } from "./ids";
 export interface EnchantInfo {
   readonly id: string;
   readonly maxLevel: number;
+  /** True for Enchantaholic custom enchantments (lore/dynprop based, no engine enchantment type). */
+  readonly custom?: boolean;
 }
 
 const LUNGE = "minecraft:lunge";

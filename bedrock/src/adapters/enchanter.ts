@@ -1,5 +1,6 @@
 import { GameMode, world, type ItemStack, type Player, type PlayerBreakBlockAfterEvent } from "@minecraft/server";
 import { MAX_APPLY_ATTEMPTS } from "../core/config";
+import { CUSTOM_ENCHANTS, isCustomId } from "../core/custom/roster";
 import type { EnchantInfo } from "../core/eligibility";
 import { isInstabreak } from "../core/instabreak";
 import { appliedLevel } from "../core/levels";
@@ -7,15 +8,31 @@ import { defaultRng, type Rng } from "../core/rng";
 import { iteratePlans, type EnchantPlan, type SlotCandidate } from "../core/selection";
 import { notifyEnchant } from "./feedback";
 import { collectSlots, type SlotHandle } from "./inventory";
-import { getEnchantable, makeProbe, readExtras, writeExtras } from "./item-levels";
+import { getEnchantable, makeProbe, readCustoms, readExtras, writeCustoms, writeExtras } from "./item-levels";
 import { debug, safe, warnOnce } from "./log";
 import { getRegistry, type EnchantRegistry } from "./registry";
-import { isEnabled } from "./state";
+import { isCustomEnabled, isEnabled } from "./state";
 
 export interface EnchantResult {
   item: ItemStack;
   enchant: EnchantInfo;
   level: number;
+}
+
+/** Applies a custom-enchant plan (lore/dynprop only) and writes the item back. False when the write throws. */
+export function applyCustomPlan(handle: SlotHandle, item: ItemStack, plan: EnchantPlan<SlotHandle>): boolean {
+  const id = plan.enchant.id;
+  if (!isCustomId(id)) return false;
+  const customs = readCustoms(item);
+  customs.set(id, plan.toLevel);
+  writeCustoms(item, customs);
+  try {
+    handle.write(item); // ItemStack is a copy: write-back is mandatory
+  } catch (err) {
+    warnOnce("write", err);
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -28,6 +45,7 @@ export function applyPlan(
   plan: EnchantPlan<SlotHandle>,
   reg: EnchantRegistry,
 ): boolean {
+  if (plan.enchant.custom) return applyCustomPlan(handle, item, plan);
   const ench = getEnchantable(item);
   if (!ench) return false;
   const id = plan.enchant.id;
@@ -86,7 +104,8 @@ export function enchantRandomItem(player: Player, rng: Rng = defaultRng): Enchan
   if (candidates.length === 0) return undefined;
 
   let attempts = 0;
-  for (const plan of iteratePlans(candidates, reg.all, rng)) {
+  const customs = isCustomEnabled() ? CUSTOM_ENCHANTS : [];
+  for (const plan of iteratePlans(candidates, reg.all, rng, customs)) {
     if (++attempts > MAX_APPLY_ATTEMPTS) break;
     const item = items.get(plan.key);
     if (!item) continue;

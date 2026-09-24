@@ -243,13 +243,17 @@ beforeEach(() => {
 // ───────────────────────────── tests ─────────────────────────────
 
 describe("bundled main.js in a simulated runtime", () => {
-  it("registered exactly one handler per signal and one interval at worldLoad", () => {
-    expect(world.afterEvents.playerBreakBlock.count).toBe(1);
-    expect(world.beforeEvents.entityHurt.count).toBe(1);
-    expect(world.afterEvents.entitySpawn.count).toBe(1);
-    expect(world.afterEvents.entityRemove.count).toBe(1);
+  it("registered the expected handlers and intervals at worldLoad", () => {
+    // One for the enchanter / overcap effects, one for the custom effects (v0.3.0).
+    expect(world.afterEvents.playerBreakBlock.count).toBe(2);
+    expect(world.beforeEvents.entityHurt.count).toBe(2); // overcap damage + Moon Boots fall guard
+    expect(world.afterEvents.entitySpawn.count).toBe(2); // Power tracking + Barrage/Kaboom
+    expect(world.afterEvents.entityRemove.count).toBe(2);
+    expect(world.afterEvents.entityHitEntity.count).toBe(1);
+    expect(world.afterEvents.entityDie.count).toBe(1);
     expect(world.afterEvents.playerLeave.count).toBe(1); // notify-prefs cache cleanup
-    expect(system.intervals).toHaveLength(1);
+    // Efficiency (20), Magnet (10), Moon Boots (10), Hiccups (200).
+    expect(system.intervals.map((i) => i.ticks)).toEqual([20, 10, 10, 200]);
     const cmd = registry.commands.get(COMMAND)?.command;
     expect(cmd?.cheatsRequired).toBe(false);
     expect(cmd?.permissionLevel).toBe(1); // GameDirectors

@@ -25,5 +25,9 @@ public abstract class GameTabMixin {
 				.withTooltip(value -> Tooltip.create(Component.translatable("enchantaholic.createWorld.toggle.tooltip")))
 				.create(0, 0, 210, 20, Component.translatable("enchantaholic.createWorld.toggle"),
 						(b, value) -> holder.enchantaholic$setModeEnabled(value)));
+		helper.addChild(CycleButton.onOffBuilder(holder.enchantaholic$isCustomEnabled())
+				.withTooltip(value -> Tooltip.create(Component.translatable("enchantaholic.createWorld.customToggle.tooltip")))
+				.create(0, 0, 210, 20, Component.translatable("enchantaholic.createWorld.customToggle"),
+						(b, value) -> holder.enchantaholic$setCustomEnabled(value)));
 	}
 }

@@ -4,16 +4,25 @@
  * real type is expected.
  */
 import type * as mc from "@minecraft/server";
+import { PROP_CUSTOM_LEVELS } from "../../src/core/config";
+import { encodeLevels } from "../../src/core/level-codec";
+import { composeLore, splitLore } from "../../src/core/lore";
 import {
+  EntityComponentTypes,
   EntityDamageCause,
   EquipmentSlot,
+  FakeBlock,
+  FakeDurability,
   FakeEnchantable,
   FakeEntity,
   FakeItemStack,
   FakePlayer,
   GameMode,
   asReal,
+  type FakeDimension,
   type FakeEnchantableOptions,
+  type FakeProjectileComponent,
+  type Vec3,
 } from "./minecraft-server";
 
 export type EquipName = "Head" | "Chest" | "Legs" | "Feet" | "Offhand";
@@ -100,6 +109,13 @@ export interface ItemSpec {
   levels?: Record<string, number>;
   /** Pre-set item dynamic properties (only valid for non-stackables). */
   props?: Record<string, string | number | boolean>;
+  /** Attaches a FakeDurability ("minecraft:durability"). */
+  durability?: { damage?: number; max: number };
+  /**
+   * Custom enchant levels by id (e.g. { "enchantaholic:magnet": 3 }). Non-stackable: dynprop + lore;
+   * stackable: lore only. Lines are built with the real composeLore, after `lore`/`props`.
+   */
+  customs?: Record<string, number>;
 }
 
 export function makeItem(typeId: string, spec: ItemSpec = {}): FakeItemStack {
@@ -112,6 +128,19 @@ export function makeItem(typeId: string, spec: ItemSpec = {}): FakeItemStack {
   });
   for (const [id, lvl] of Object.entries(spec.levels ?? {})) enchantable?._set(id, lvl);
   for (const [k, v] of Object.entries(spec.props ?? {})) item.props.set(k, v);
+  if (spec.durability) {
+    item.components.set("minecraft:durability", new FakeDurability(spec.durability.max, spec.durability.damage ?? 0));
+  }
+  if (spec.customs) {
+    const customs = new Map(Object.entries(spec.customs));
+    if (!item.isStackable) {
+      const encoded = encodeLevels(customs);
+      if (encoded !== undefined) item.props.set(PROP_CUSTOM_LEVELS, encoded);
+    }
+    const { user, managed } = splitLore(item.lore);
+    for (const [id, level] of customs) managed.set(id, level);
+    item.lore = composeLore(user, managed);
+  }
   return item;
 }
 
@@ -189,15 +218,82 @@ export const arrow = (): FakeEntity => makeEntity("minecraft:arrow", ["arrow"]);
 
 // ───────────────────────────── events ─────────────────────────────
 
-export function makeBreakEvent(player: FakePlayer, blockId: string): mc.PlayerBreakBlockAfterEvent {
+export interface BreakSpec {
+  /** Default: the player's dimension. */
+  dimension?: FakeDimension;
+  /** Default: (0, 64, 0). */
+  location?: Vec3;
+  itemBefore?: FakeItemStack;
+  itemAfter?: FakeItemStack;
+}
+
+/** After-event of a player breaking `blockId`: `block` is a live FakeBlock (already air unless set otherwise). */
+export function makeBreakEvent(player: FakePlayer, blockId: string, spec: BreakSpec = {}): mc.PlayerBreakBlockAfterEvent {
+  const dimension = spec.dimension ?? player.dimension;
+  const block = new FakeBlock(dimension, spec.location ?? { x: 0, y: 64, z: 0 });
   return asReal<mc.PlayerBreakBlockAfterEvent>({
     player,
-    block: { typeId: "minecraft:air", location: { x: 0, y: 64, z: 0 } },
+    block,
     brokenBlockPermutation: { type: { id: blockId } },
-    dimension: { id: "minecraft:overworld" },
-    itemStackBeforeBreak: undefined,
-    itemStackAfterBreak: undefined,
+    dimension,
+    itemStackBeforeBreak: spec.itemBefore,
+    itemStackAfterBreak: spec.itemAfter,
   });
+}
+
+/** entityHitEntity after-event. */
+export function makeHitEvent(attacker: FakeEntity, target: FakeEntity): mc.EntityHitEntityAfterEvent {
+  return asReal<mc.EntityHitEntityAfterEvent>({ damagingEntity: attacker, hitEntity: target });
+}
+
+/** entityDie after-event; the cause is entityAttack with a killer, none without. */
+export function makeDieEvent(dead: FakeEntity, killer?: FakeEntity): mc.EntityDieAfterEvent {
+  return asReal<mc.EntityDieAfterEvent>({
+    deadEntity: dead,
+    damageSource: {
+      cause: killer ? EntityDamageCause.entityAttack : EntityDamageCause.none,
+      ...(killer ? { damagingEntity: killer } : {}),
+    },
+  });
+}
+
+/**
+ * projectileHitBlock / projectileHitEntity after-event. `source` is the projectile component's owner.
+ * Location defaults to the projectile's location.
+ */
+export function makeProjectileHit(
+  projectile: FakeEntity,
+  kind: "block",
+  location?: Vec3,
+): mc.ProjectileHitBlockAfterEvent;
+export function makeProjectileHit(
+  projectile: FakeEntity,
+  kind: "entity",
+  location?: Vec3,
+): mc.ProjectileHitEntityAfterEvent;
+export function makeProjectileHit(
+  projectile: FakeEntity,
+  kind: "block" | "entity",
+  location?: Vec3,
+): mc.ProjectileHitBlockAfterEvent | mc.ProjectileHitEntityAfterEvent {
+  const loc = location ?? { ...projectile.location };
+  const owner = (projectile.getComponent(EntityComponentTypes.Projectile) as FakeProjectileComponent | undefined)?.owner;
+  const dimension = projectile.dimension;
+  const base = {
+    dimension,
+    location: loc,
+    projectile,
+    hitVector: projectile.getVelocity(),
+    ...(owner ? { source: owner } : {}),
+  };
+  if (kind === "block") {
+    const block = new FakeBlock(dimension, loc);
+    return asReal<mc.ProjectileHitBlockAfterEvent>({
+      ...base,
+      getBlockHit: () => ({ block, face: "Up", faceLocation: { x: 0.5, y: 1, z: 0.5 } }),
+    });
+  }
+  return asReal<mc.ProjectileHitEntityAfterEvent>({ ...base, getEntityHit: () => ({ entity: undefined }) });
 }
 
 export interface HurtSpec {

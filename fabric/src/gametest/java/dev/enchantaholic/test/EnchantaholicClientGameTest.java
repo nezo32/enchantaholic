@@ -4,12 +4,15 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import dev.enchantaholic.client.CreateWorldModeHolder;
 import dev.enchantaholic.mode.EnchantaholicMode;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.GenericMessageScreen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
@@ -33,6 +36,8 @@ import net.minecraft.world.level.storage.LevelResource;
  * <li>Re-Create world 2 from the world list: the buttons start at the defaults (mode ON, customs OFF), not copied;
  *     switch the mode OFF and customs ON, so the new world has customs ON and the mode OFF (independent settings).</li>
  * <li>Re-open world 1 and world 2: mode.dat is read back (ON / OFF), no pending value is applied.</li>
+ * <li>Russian: switch the client language to ru_ru, open Create World, check the toggle reads «Режим Enchantaholic: …»
+ *     and take a screenshot, then switch back to en_us (options.txt is not saved).</li>
  * </ol>
  */
 public class EnchantaholicClientGameTest implements FabricClientGameTest {
@@ -142,9 +147,44 @@ public class EnchantaholicClientGameTest implements FabricClientGameTest {
 		assertCustom(ctx, false, "world 2 re-opened");
 		leaveWorld(ctx);
 
+		// 6. ru_ru: the Create World toggles are translated
+		setLanguage(ctx, "ru_ru");
+		ctx.runOnClient(mc -> CreateWorldScreen.openFresh(mc, () -> mc.gui.setScreen(new TitleScreen())));
+		ctx.waitForScreen(CreateWorldScreen.class);
+		String ruToggle = widgetText(ctx, "Режим Enchantaholic");
+		String ruCustom = widgetText(ctx, "Особые зачарования");
+		ctx.takeScreenshot("create_world_game_tab_ru");
+		ctx.clickScreenButton("gui.cancel");
+		ctx.waitForScreen(TitleScreen.class);
+		setLanguage(ctx, "en_us");
+		System.out.println("ENCHANTAHOLIC_RU toggle=\"" + ruToggle + "\" custom=\"" + ruCustom + "\"");
+
 		ctx.setScreen(TitleScreen::new);
 		System.out.println("ENCHANTAHOLIC_CLIENT_TEST_OK world1=" + world1.getFileName() + " world2=" + world2.getFileName()
 				+ " recreated=" + world3.getFileName());
+	}
+
+	/** Same as picking a language in Options → Language, minus saving options.txt. */
+	private static void setLanguage(ClientGameTestContext ctx, String code) {
+		AtomicReference<CompletableFuture<Void>> reload = new AtomicReference<>();
+		ctx.runOnClient(mc -> {
+			mc.getLanguageManager().setSelected(code);
+			mc.options.languageCode = code;
+			reload.set(mc.reloadResourcePacks());
+		});
+		ctx.waitFor(mc -> reload.get().isDone() && mc.gui.overlay() == null, 20 * 120);
+		String selected = ctx.computeOnClient(mc -> mc.getLanguageManager().getSelected());
+		if (!code.equals(selected)) throw new AssertionError("language is " + selected + ", expected " + code);
+	}
+
+	/** The message of the first widget on the current screen that starts with prefix (fails if there is none). */
+	private static String widgetText(ClientGameTestContext ctx, String prefix) {
+		return ctx.computeOnClient(mc -> mc.gui.screen().children().stream()
+				.filter(c -> c instanceof AbstractWidget)
+				.map(c -> ((AbstractWidget) c).getMessage().getString())
+				.filter(t -> t.startsWith(prefix))
+				.findFirst()
+				.orElseThrow(() -> new AssertionError("no widget starting with \"" + prefix + "\" on " + mc.gui.screen())));
 	}
 
 	private static void openCreateWorld(ClientGameTestContext ctx) {

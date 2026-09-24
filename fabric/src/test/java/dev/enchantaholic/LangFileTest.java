@@ -10,6 +10,11 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -18,15 +23,91 @@ import org.junit.jupiter.api.Test;
 
 class LangFileTest {
 	private static JsonObject lang;
+	private static JsonObject ru;
 
 	@BeforeAll
 	static void load() throws IOException {
-		try (InputStream in = LangFileTest.class.getResourceAsStream("/assets/enchantaholic/lang/en_us.json")) {
-			assertNotNull(in, "en_us.json not on the test classpath");
+		lang = read("en_us");
+		ru = read("ru_ru");
+	}
+
+	private static JsonObject read(String code) throws IOException {
+		try (InputStream in = LangFileTest.class.getResourceAsStream("/assets/enchantaholic/lang/" + code + ".json")) {
+			assertNotNull(in, code + ".json not on the test classpath");
 			try (Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
-				lang = JsonParser.parseReader(reader).getAsJsonObject();
+				return JsonParser.parseReader(reader).getAsJsonObject();
 			}
 		}
+	}
+
+	/** Format placeholders (%s, %1$s, %d, …) of a lang value, sorted; %% is a literal percent sign. */
+	static List<String> placeholders(String value) {
+		Matcher m = Pattern.compile("%(?:(\\d+)\\$)?([a-zA-Z%])").matcher(value);
+		List<String> out = new ArrayList<>();
+		int next = 1;
+		while (m.find()) {
+			if (m.group(2).equals("%")) continue;
+			// unnumbered %s count as positional, so "%s %s" and "%2$s %1$s" compare equal
+			out.add((m.group(1) != null ? m.group(1) : String.valueOf(next++)) + "$" + m.group(2));
+		}
+		out.sort(null);
+		return out;
+	}
+
+	@Test
+	void placeholderHelperSanity() {
+		assertEquals(List.of("1$s", "2$s"), placeholders("✦ %1$s → %2$s"));
+		assertEquals(List.of("1$s", "2$s"), placeholders("%2$s a %1$s"));
+		assertEquals(List.of("1$s"), placeholders("Sound: %s (100%%)"));
+		assertEquals(List.of(), placeholders("none"));
+	}
+
+	@Test
+	void russianHasExactlyTheEnglishKeys() {
+		assertEquals(new TreeSet<>(lang.keySet()), new TreeSet<>(ru.keySet()), "ru_ru.json key set differs from en_us.json");
+	}
+
+	@Test
+	void russianPlaceholdersMatchEnglish() {
+		for (String key : lang.keySet()) {
+			if (!ru.has(key)) continue; // reported by russianHasExactlyTheEnglishKeys
+			assertEquals(placeholders(lang.get(key).getAsString()), placeholders(ru.get(key).getAsString()), "placeholders of " + key);
+		}
+	}
+
+	@Test
+	void noEmptyValues() {
+		for (JsonObject file : new JsonObject[] {lang, ru}) {
+			for (String key : file.keySet()) {
+				assertFalse(file.get(key).getAsString().isBlank(), "blank " + key + (file == ru ? " (ru_ru)" : " (en_us)"));
+			}
+		}
+	}
+
+	@Test
+	void russianLevelNumeralsIdenticalToEnglish() {
+		for (String key : lang.keySet()) {
+			if (!key.startsWith("enchantment.level.")) continue;
+			assertTrue(ru.has(key), "ru_ru missing " + key);
+			assertEquals(lang.get(key).getAsString(), ru.get(key).getAsString(), "ru_ru " + key);
+		}
+		for (int n = 11; n <= 255; n++) {
+			assertEquals(toRoman(n), ru.get("enchantment.level." + n).getAsString(), "ru_ru enchantment.level." + n);
+		}
+	}
+
+	/** Custom enchantments must actually be translated (not a copy of the English name), except the mod name. */
+	@Test
+	void russianCustomNamesTranslated() {
+		for (String id : CUSTOM_IDS) {
+			String key = "enchantment.enchantaholic." + id;
+			assertFalse(lang.get(key).getAsString().equals(ru.get(key).getAsString()), "untranslated " + key);
+		}
+		assertTrue(ru.get("enchantment.enchantaholic.butterfingers").getAsString().startsWith("Проклятие"), "butterfingers is a curse (ru)");
+		assertTrue(ru.get("enchantment.enchantaholic.hiccups").getAsString().startsWith("Проклятие"), "hiccups is a curse (ru)");
+		assertEquals("Режим Enchantaholic", ru.get("enchantaholic.createWorld.toggle").getAsString());
+		assertTrue(ru.get("enchantaholic.createWorld.customToggle.tooltip").getAsString().contains("/enchantaholic custom"),
+				"ru tooltip names the command");
 	}
 
 	static String toRoman(int n) {

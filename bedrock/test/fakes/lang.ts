@@ -15,7 +15,7 @@ export const RP_TEXTS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.
 /** Parses a Bedrock .lang file: `key=value` lines; `##` comments and blank lines skipped; a `\t#` starts a comment. */
 export function parseLang(src: string): Map<string, string> {
   const out = new Map<string, string>();
-  for (const raw of src.replace(/^﻿/, "").split(/\r?\n/)) {
+  for (const raw of src.replace(/^\uFEFF/, "").split(/\r?\n/)) {
     if (raw.trim() === "" || raw.startsWith("#")) continue;
     const eq = raw.indexOf("=");
     if (eq <= 0) throw new Error(`Bad lang line: ${JSON.stringify(raw)}`);

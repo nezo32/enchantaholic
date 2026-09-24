@@ -7,7 +7,7 @@
  * @returns {any} a new manifest object
  */
 export function stampManifest(manifest, triple, packUuids) {
-  const m = structuredClone(manifest);
+  const m = JSON.parse(JSON.stringify(manifest));
   m.header.version = [...triple];
   for (const mod of m.modules ?? []) mod.version = [...triple];
   for (const dep of m.dependencies ?? []) {

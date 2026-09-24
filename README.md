@@ -180,7 +180,7 @@ The **Bedrock pack** needs Node 22+ (CI uses 24).
 cd bedrock
 npm ci
 npm run typecheck && npm run lint && npm test
-npm run package          # dist/enchantaholic-<version>.mcaddon and .mcpack
+npm run package          # dist/enchantaholic-<version>.mcaddon (behavior + resource pack) and .mcpack files
 ```
 
 The in-game checks for Bedrock are listed in

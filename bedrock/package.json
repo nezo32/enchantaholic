@@ -23,7 +23,7 @@
     "eslint": "10.11.0",
     "fflate": "0.8.3",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.70.1",
+    "typescript-eslint": "8.71.0",
     "vitest": "5.0.1"
   }
 }
